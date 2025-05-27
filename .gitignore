@@ -31,3 +31,5 @@ build/
 
 ### VS Code ###
 .vscode/
+
+src/main/java/com/yupi/yuaiagent/demo/invoke/TestApiKey.java
