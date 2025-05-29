@@ -1,12 +1,18 @@
 spring:
   application:
-    name: spring-ai-alibaba-qwq-chat-client-example
+    name: ai-agent
+  profiles:
+    active: local
   ai:
     dashscope:
       api-key: ${AI_DASHSCOPE_API_KEY}
       chat:
         options:
           model: qwen-plus
+    ollama:
+      base-url: http://localhost:11434
+      chat:
+        model: gemma3:1b
 server:
   port: 8123
   servlet:
