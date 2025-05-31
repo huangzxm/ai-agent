@@ -15,6 +15,7 @@ class ChatAppTest {
     @Resource
     private ChatApp chatApp;
 
+
     @Test
     void test() {
         String chatId = UUID.randomUUID().toString();
@@ -30,4 +31,14 @@ class ChatAppTest {
         answer = chatApp.doChat(chatId, message);
         Assertions.assertNotNull(answer);
     }
+
+    @Test
+    void doChatWithReport() {
+        String chatId = UUID.randomUUID().toString();
+        // 第一轮
+        String message = "你好，我想让你和我在一起，但我不知道该怎么做";
+        ChatApp.ChatReport loveReport = chatApp.doChatWithReport(message, chatId);
+        Assertions.assertNotNull(loveReport);
+    }
+
 }

@@ -11,6 +11,8 @@ import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.stereotype.Component;
 
+import java.util.List;
+
 import static org.springframework.ai.chat.client.advisor.AbstractChatMemoryAdvisor.CHAT_MEMORY_CONVERSATION_ID_KEY;
 import static org.springframework.ai.chat.client.advisor.AbstractChatMemoryAdvisor.CHAT_MEMORY_RETRIEVE_SIZE_KEY;
 
@@ -49,6 +51,24 @@ public class ChatApp {
         log.info("content: {}", content);
         return content;
     }
+
+    record ChatReport(String title, List<String> suggestions) {
+    }
+
+
+    public ChatReport doChatWithReport(String message, String chatId) {
+        ChatReport chatReport = chatClient
+                .prompt()
+                .system(SYSTEM_PROMPT + "每次对话后都要生成恋爱结果，标题为{用户名}的表白报告，内容为建议列表")
+                .user(message)
+                .advisors(spec -> spec.param(CHAT_MEMORY_CONVERSATION_ID_KEY, chatId)
+                        .param(CHAT_MEMORY_RETRIEVE_SIZE_KEY, 10))
+                .call()
+                .entity(ChatReport.class);
+        log.info("loveReport: {}", chatReport);
+        return chatReport;
+    }
+
 
 
 }
