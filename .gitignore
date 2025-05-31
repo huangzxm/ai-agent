@@ -32,5 +32,6 @@ build/
 ### VS Code ###
 .vscode/
 
-src/main/resources/application-local.yml
-src/main/java/com/yupi/yuaiagent/demo/invoke/TestApiKey.java
+# 移除以下两行排除规则
+# src/main/resources/application-local.yml
+# src/main/java/com/yupi/yuaiagent/demo/invoke/TestApiKey.java
