@@ -1,6 +1,7 @@
 package com.yupi.yuaiagent.app;
 
 import com.yupi.yuaiagent.advisor.MyLoggerAdvisor;
+import com.yupi.yuaiagent.advisor.ReReadingAdvisor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.client.advisor.MessageChatMemoryAdvisor;
@@ -31,6 +32,7 @@ public class ChatApp {
                 .defaultAdvisors(
                         new MessageChatMemoryAdvisor(chatMemory),
                         new MyLoggerAdvisor()
+//                        new ReReadingAdvisor() 为了节省token成本，暂时注释掉
                 )
                .build();
     }
