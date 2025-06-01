@@ -8,6 +8,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.client.advisor.MessageChatMemoryAdvisor;
 import org.springframework.ai.chat.client.advisor.QuestionAnswerAdvisor;
+import org.springframework.ai.chat.client.advisor.api.Advisor;
 import org.springframework.ai.chat.memory.ChatMemory;
 import org.springframework.ai.chat.memory.InMemoryChatMemory;
 import org.springframework.ai.chat.model.ChatModel;
@@ -32,10 +33,10 @@ public class ChatApp {
             "原来高岭之花的花期，只开在你目光所及之处";
 
     public ChatApp(ChatModel dashscopeChatModel) {
-        // 初始化基于文件的对话记忆
-        String fileDir = System.getProperty("user.dir") + "/tmp/chat-memory";
-        ChatMemory chatMemory = new FileBasedChatMemory(fileDir);
-//        ChatMemory chatMemory = new InMemoryChatMemory();  // 内存对话记忆
+//        // 初始化基于文件的对话记忆
+//        String fileDir = System.getProperty("user.dir") + "/tmp/chat-memory";
+//        ChatMemory chatMemory = new FileBasedChatMemory(fileDir);
+        ChatMemory chatMemory = new InMemoryChatMemory();  // 内存对话记忆
         chatClient = ChatClient.builder(dashscopeChatModel)
                 .defaultSystem(SYSTEM_PROMPT)
                 .defaultAdvisors(
@@ -81,6 +82,9 @@ public class ChatApp {
     @Resource
     private VectorStore chatAppVectorStore;
 
+    @Resource
+    private Advisor loveAppRagCloudAdvisor;
+
     public String doChatWithRag(String message, String chatId) {
         ChatResponse chatResponse = chatClient
                 .prompt()
@@ -89,8 +93,8 @@ public class ChatApp {
                         .param(CHAT_MEMORY_RETRIEVE_SIZE_KEY, 10))
                 // 开启日志，便于观察效果
                 .advisors(new MyLoggerAdvisor())
-                // 应用知识库问答
-                .advisors(new QuestionAnswerAdvisor(chatAppVectorStore))
+//                .advisors(new QuestionAnswerAdvisor(chatAppVectorStore)) // 基于向量数据库的问答
+                .advisors(loveAppRagCloudAdvisor) // 基于自定义基于阿里云知识库服务的 RAG 增强顾问
                 .call()
                 .chatResponse();
         String content = chatResponse.getResult().getOutput().getText();
