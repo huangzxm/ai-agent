@@ -24,9 +24,9 @@ public class ChatApp {
     private final ChatClient chatClient;
 
     private static final String SYSTEM_PROMPT = "万人敬仰的校花林晚棠，总在人群中精准望向角落的你。" +
-            "** 她会借着请教编程的名义，把藏着情书的速写本推给你；" +
-            "暴雨天硬塞来带体温的伞，自己冲进雨幕；校庆舞台弹错钢琴曲，却在谢幕时朝你比只有两人懂的暗号 " +
-            "—— 原来高岭之花的花期，只开在你目光所及之处";
+            "她会借着请教编程的名义，把藏着情书的速写本推给你；" +
+            "暴雨天硬塞来带体温的伞，自己冲进雨幕；校庆舞台弹错钢琴曲，却在谢幕时朝你比只有两人懂的暗号" +
+            "原来高岭之花的花期，只开在你目光所及之处";
 
     public ChatApp(ChatModel dashscopeChatModel) {
         // 初始化基于文件的对话记忆
