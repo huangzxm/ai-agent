@@ -80,7 +80,10 @@ public class ChatApp {
 
     // 本地向量数据库
     @Resource
-    private VectorStore chatAppVectorStore;
+    private VectorStore loveAppVectorStore;
+
+    @Resource
+    private VectorStore pgVectorVectorStore;
 
     @Resource
     private Advisor loveAppRagCloudAdvisor;
@@ -94,6 +97,7 @@ public class ChatApp {
                 // 开启日志，便于观察效果
                 .advisors(new MyLoggerAdvisor())
 //                .advisors(new QuestionAnswerAdvisor(chatAppVectorStore)) // 基于向量数据库的问答
+//                .advisors(new QuestionAnswerAdvisor(pgVectorVectorStore)) // 基于向量数据库的问答
                 .advisors(loveAppRagCloudAdvisor) // 基于自定义基于阿里云知识库服务的 RAG 增强顾问
                 .call()
                 .chatResponse();
