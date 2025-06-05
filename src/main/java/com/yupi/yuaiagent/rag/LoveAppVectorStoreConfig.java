@@ -19,10 +19,15 @@ public class LoveAppVectorStoreConfig {
     @Resource
     private ChatAppDocumentLoader chatAppDocumentLoader;
 
+    @Resource
+    private MyTokenTextSplitter myTokenTextSplitter;
+
     @Bean
     VectorStore loveAppVectorStore(EmbeddingModel dashscopeEmbeddingModel) {
         SimpleVectorStore simpleVectorStore = SimpleVectorStore.builder(dashscopeEmbeddingModel).build();
         List<Document> documentList = chatAppDocumentLoader.loadMarkdowns();
+//        // 自主切分文档
+//        List<Document> splitDocuments = myTokenTextSplitter.splitCustomized(documentList);
         simpleVectorStore.add(documentList);
         return simpleVectorStore;
     }
