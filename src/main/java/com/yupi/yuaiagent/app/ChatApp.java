@@ -3,6 +3,7 @@ package com.yupi.yuaiagent.app;
 import com.yupi.yuaiagent.advisor.MyLoggerAdvisor;
 import com.yupi.yuaiagent.advisor.ReReadingAdvisor;
 import com.yupi.yuaiagent.chatmemory.FileBasedChatMemory;
+import com.yupi.yuaiagent.rag.LoveAppRagCustomAdvisorFactory;
 import com.yupi.yuaiagent.rag.QueryRewriter;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
@@ -104,6 +105,9 @@ public class ChatApp {
 //                .advisors(new QuestionAnswerAdvisor(chatAppVectorStore)) // 基于向量数据库的问答
 //                .advisors(new QuestionAnswerAdvisor(pgVectorVectorStore)) // 基于向量数据库的问答
                 .advisors(loveAppRagCloudAdvisor) // 基于自定义基于阿里云知识库服务的 RAG 增强顾问
+//                .advisors(LoveAppRagCustomAdvisorFactory.createLoveAppCustomAdvisor(//应用自定义的 RAG 检索增强服务（RAG）
+//                       loveAppVectorStore,"单身"
+//                ))
                 .call()
                 .chatResponse();
         String content = chatResponse.getResult().getOutput().getText();
