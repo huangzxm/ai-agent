@@ -1,6 +1,5 @@
 package com.yupi.yuaiagent.rag;
 
-
 import org.springframework.ai.document.Document;
 import org.springframework.ai.transformer.splitter.TokenTextSplitter;
 import org.springframework.stereotype.Component;
@@ -11,7 +10,7 @@ import java.util.List;
  * 自定义基于 Token 的切词器
  */
 @Component
-public class MyTokenTextSplitter {
+class MyTokenTextSplitter {
     public List<Document> splitDocuments(List<Document> documents) {
         TokenTextSplitter splitter = new TokenTextSplitter();
         return splitter.apply(documents);

@@ -18,15 +18,18 @@ public class FileOperationTool {
         try {
             return FileUtil.readUtf8String(filePath);
         } catch (Exception e) {
-            return "File not found or error reading file: " + e.getMessage();
+            return "Error reading file: " + e.getMessage();
         }
     }
 
     @Tool(description = "Write content to a file")
-    public String writeFile(@ToolParam(description = "Name of a file to write") String fileName,
-                            @ToolParam(description = "Content to write to the file") String content) {
+    public String writeFile(@ToolParam(description = "Name of the file to write") String fileName,
+                            @ToolParam(description = "Content to write to the file") String content
+    ) {
         String filePath = FILE_DIR + "/" + fileName;
+
         try {
+            // 创建目录
             FileUtil.mkdir(FILE_DIR);
             FileUtil.writeUtf8String(content, filePath);
             return "File written successfully to: " + filePath;
@@ -34,5 +37,4 @@ public class FileOperationTool {
             return "Error writing to file: " + e.getMessage();
         }
     }
-
 }

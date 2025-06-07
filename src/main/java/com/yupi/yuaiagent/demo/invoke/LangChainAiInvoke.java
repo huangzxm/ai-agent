@@ -6,12 +6,11 @@ import dev.langchain4j.model.chat.ChatLanguageModel;
 public class LangChainAiInvoke {
 
     public static void main(String[] args) {
-        ChatLanguageModel qwenModel = QwenChatModel.builder()
+        ChatLanguageModel qwenChatModel = QwenChatModel.builder()
                 .apiKey(TestApiKey.API_KEY)
                 .modelName("qwen-max")
                 .build();
-        String answer = qwenModel.chat("hello world");
+        String answer = qwenChatModel.chat("hello world");
         System.out.println(answer);
     }
 }
-
