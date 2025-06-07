@@ -34,3 +34,4 @@ build/
 
 src/main/resources/application-local.yml
 src/main/java/com/yupi/yuaiagent/demo/invoke/TestApiKey.java
+tmp/file
