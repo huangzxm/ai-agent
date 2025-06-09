@@ -13,22 +13,10 @@ spring:
       base-url: http://localhost:11434
       chat:
         model: gemma3:1b
-    # 添加以下配置项来禁用数据源自动配置
-    autoconfigure:
-      exclude:
-        - org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration
-        - org.springframework.boot.autoconfigure.orm.jpa.HibernateJpaAutoConfiguration
-        - org.springframework.boot.autoconfigure.jdbc.DataSourceTransactionManagerAutoConfiguration
-        - org.springframework.boot.autoconfigure.sql.init.SqlInitializationAutoConfiguration
-
-    # 禁用 PostgreSQL 向量存储
-    vectorstore:
-      pgvector:
-        enabled: false
-#    datasource:
-#      url: jdbc:postgresql://ip/yu_ai_agent
-#      username:
-#      password:
+    mcp:
+      client:
+        stdio:
+          servers-configuration: classpath:mcp-servers.json
 #    vectorstore:
 #      pgvector:
 #        index-type: HNSW

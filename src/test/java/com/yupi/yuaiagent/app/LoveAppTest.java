@@ -1,11 +1,17 @@
 package com.yupi.yuaiagent.app;
 
+import com.yupi.yuaiagent.advisor.MyLoggerAdvisor;
 import jakarta.annotation.Resource;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
+import org.springframework.ai.chat.model.ChatResponse;
+import org.springframework.ai.tool.ToolCallbackProvider;
 import org.springframework.boot.test.context.SpringBootTest;
 
 import java.util.UUID;
+
+import static org.springframework.ai.chat.client.advisor.AbstractChatMemoryAdvisor.CHAT_MEMORY_CONVERSATION_ID_KEY;
+import static org.springframework.ai.chat.client.advisor.AbstractChatMemoryAdvisor.CHAT_MEMORY_RETRIEVE_SIZE_KEY;
 
 @SpringBootTest
 class LoveAppTest {
@@ -17,10 +23,10 @@ class LoveAppTest {
     void testChat() {
         String chatId = UUID.randomUUID().toString();
         // 第一轮
-        String message = "你好，我是程序员鱼皮";
+        String message = "你好，我是aaa";
         String answer = loveApp.doChat(message, chatId);
         // 第二轮
-        message = "我想让另一半（编程导航）更爱我";
+        message = "我想让另一半（啊啊啊）更爱我";
         answer = loveApp.doChat(message, chatId);
         Assertions.assertNotNull(answer);
         // 第三轮
@@ -32,7 +38,7 @@ class LoveAppTest {
     @Test
     void doChatWithReport() {
         String chatId = UUID.randomUUID().toString();
-        String message = "你好，我是程序员鱼皮，我想让另一半（编程导航）更爱我，但我不知道该怎么做";
+        String message = "你好，我是aaa，我想让另一半（啊啊啊）更爱我，但我不知道该怎么做";
         LoveApp.LoveReport loveReport = loveApp.doChatWithReport(message, chatId);
         Assertions.assertNotNull(loveReport);
     }
@@ -51,7 +57,7 @@ class LoveAppTest {
         testMessage("周末想带女朋友去上海约会，推荐几个适合情侣的小众打卡地？");
 
         // 测试网页抓取：恋爱案例分析
-        testMessage("最近和对象吵架了，看看编程导航网站（codefather.cn）的其他情侣是怎么解决矛盾的？");
+        testMessage("最近和对象吵架了，看看aaaa的其他情侣是怎么解决矛盾的？");
 
         // 测试资源下载：图片下载
         testMessage("直接下载一张适合做手机壁纸的星空情侣图片为文件");
@@ -71,4 +77,15 @@ class LoveAppTest {
         String answer = loveApp.doChatWithTools(message, chatId);
         Assertions.assertNotNull(answer);
     }
+
+    @Test
+    void doChatWithMcp() {
+        String chatId = UUID.randomUUID().toString();
+        // 测试地图 MCP
+        String message = "我的另一半居住在上海静安区，请帮我找到 5 公里内合适的约会地点";
+        String answer =  loveApp.doChatWithMcp(message, chatId);
+    }
+
+
+
 }
