@@ -15,8 +15,13 @@ spring:
         model: gemma3:1b
     mcp:
       client:
-        stdio:
-          servers-configuration: classpath:mcp-servers.json
+        sse:
+          connections:
+            servers1:
+              url: http://localhost:8127
+#        stdio:
+#          servers-configuration: classpath:mcp-servers.json
+
 #    vectorstore:
 #      pgvector:
 #        index-type: HNSW

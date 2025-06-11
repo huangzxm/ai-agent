@@ -3,6 +3,6 @@ spring:
     name: image-search-mcp-server
   #自定义使用本地还是sse MCP服务
   profiles:
-    active: stdio
+    active: sse
 server:
   port: 8127
