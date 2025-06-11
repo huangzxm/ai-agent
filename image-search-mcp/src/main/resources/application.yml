@@ -1,0 +1,8 @@
+spring:
+  application:
+    name: image-search-mcp-server
+  #自定义使用本地还是sse MCP服务
+  profiles:
+    active: stdio
+server:
+  port: 8127
