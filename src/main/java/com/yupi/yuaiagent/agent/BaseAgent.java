@@ -43,7 +43,7 @@ public abstract class BaseAgent {
      * @param userPrompt
      * @return
      */
-    private String run(String userPrompt) {
+    public String run(String userPrompt) {
         //1 检验参数
         if (this.state == AgentState.IDLE) {
             throw new RuntimeException("Cannot not agent from status: " + this.state);

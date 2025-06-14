@@ -27,7 +27,7 @@ import java.util.stream.Collectors;
 @EqualsAndHashCode(callSuper = true)
 @Data
 @Slf4j
-public class TooCallAgent extends ReActAgent{
+public class ToolCallAgent extends ReActAgent{
 
     // 可用的工具
     private final ToolCallback[] availableTools;
