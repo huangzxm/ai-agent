@@ -1,12 +1,15 @@
 package com.yupi.yuaiagent.app;
 
 import com.yupi.yuaiagent.advisor.MyLoggerAdvisor;
+import com.yupi.yuaiagent.config.TestConfig;
 import jakarta.annotation.Resource;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.ai.tool.ToolCallbackProvider;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.context.annotation.Import;
+import org.springframework.test.context.TestPropertySource;
 
 import java.util.UUID;
 
@@ -14,6 +17,8 @@ import static org.springframework.ai.chat.client.advisor.AbstractChatMemoryAdvis
 import static org.springframework.ai.chat.client.advisor.AbstractChatMemoryAdvisor.CHAT_MEMORY_RETRIEVE_SIZE_KEY;
 
 @SpringBootTest
+@Import(TestConfig.class)
+@TestPropertySource(properties = {"app.pgvector.enabled=false"})
 class LoveAppTest {
 
     @Resource
@@ -69,7 +74,7 @@ class LoveAppTest {
         testMessage("保存我的恋爱档案为文件");
 
         // 测试 PDF 生成
-        testMessage("生成一份‘七夕约会计划’PDF，包含餐厅预订、活动流程和礼物清单");
+        testMessage("生成一份'七夕约会计划'PDF，包含餐厅预订、活动流程和礼物清单");
     }
 
     private void testMessage(String message) {
