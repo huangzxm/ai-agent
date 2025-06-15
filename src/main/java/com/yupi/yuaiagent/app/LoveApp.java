@@ -18,10 +18,13 @@ import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.ai.tool.ToolCallback;
 import org.springframework.ai.tool.ToolCallbackProvider;
 import org.springframework.ai.vectorstore.VectorStore;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Component;
 import reactor.core.publisher.Flux;
 
 import java.util.List;
+import java.util.Optional;
 
 import static org.springframework.ai.chat.client.advisor.AbstractChatMemoryAdvisor.CHAT_MEMORY_CONVERSATION_ID_KEY;
 import static org.springframework.ai.chat.client.advisor.AbstractChatMemoryAdvisor.CHAT_MEMORY_RETRIEVE_SIZE_KEY;
@@ -129,7 +132,9 @@ public class LoveApp {
     @Resource
     private Advisor loveAppRagCloudAdvisor;
 
-    @Resource
+    // 使用@Autowired和@Qualifier处理可能不存在的依赖
+    @Autowired(required = false)
+    @Qualifier("pgVectorVectorStore")
     private VectorStore pgVectorVectorStore;
 
     @Resource
@@ -158,7 +163,7 @@ public class LoveApp {
                 // 应用 RAG 检索增强服务（基于云知识库服务）
 //                .advisors(loveAppRagCloudAdvisor)
                 // 应用 RAG 检索增强服务（基于 PgVector 向量存储）
-//                .advisors(new QuestionAnswerAdvisor(pgVectorVectorStore))
+//                .advisors(pgVectorVectorStore != null ? new QuestionAnswerAdvisor(pgVectorVectorStore) : null)
                 // 应用自定义的 RAG 检索增强服务（文档查询器 + 上下文增强器）
 //                .advisors(
 //                        LoveAppRagCustomAdvisorFactory.createLoveAppRagCustomAdvisor(
