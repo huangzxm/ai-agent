@@ -83,5 +83,17 @@ public class AiController {
         // 返回
         return sseEmitter;
     }
+
+    /**
+     * 流式调用 Manus 超级智能体
+     *
+     * @param message
+     * @return
+     */
+    @GetMapping("/manus/chat")
+    public SseEmitter doChatWithManus(String message) {
+        Manus manus = new Manus(allTools, dashscopeChatModel);
+        return manus.runStream(message);
+    }
 }
 
