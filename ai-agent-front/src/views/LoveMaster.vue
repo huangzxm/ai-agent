@@ -56,13 +56,6 @@ const sendMessage = async () => {
     type: 'user'
   })
   
-  // 添加AI回复占位
-  const aiMessageIndex = messages.value.length
-  messages.value.push({
-    content: '',
-    type: 'ai'
-  })
-  
   // 获取用户输入并清空输入框
   const message = inputMessage.value
   inputMessage.value = ''
@@ -70,8 +63,6 @@ const sendMessage = async () => {
   
   // 使用SSE接收流式响应
   const eventSource = apiService.doChatWithLoveAppSse(message, chatId.value)
-  
-  let aiResponse = ''
   
   eventSource.onmessage = (event) => {
     const data = event.data
@@ -85,18 +76,21 @@ const sendMessage = async () => {
         return
       }
       
-      // 如果有content字段，添加到响应中
+      // 如果有content字段，创建新的消息气泡
       if (jsonData.content) {
-        aiResponse += jsonData.content
-        // 更新AI消息内容
-        messages.value[aiMessageIndex].content = aiResponse
+        messages.value.push({
+          content: jsonData.content,
+          type: 'ai'
+        })
       }
     } catch (e) {
       // 如果不是JSON格式，按原方式处理
       if (data !== '[DONE]') {
-        aiResponse += data
-        // 更新AI消息内容
-        messages.value[aiMessageIndex].content = aiResponse
+        // 创建新的消息气泡
+        messages.value.push({
+          content: data,
+          type: 'ai'
+        })
       } else {
         // 流结束
         eventSource.close()
@@ -110,10 +104,11 @@ const sendMessage = async () => {
     eventSource.close()
     isStreaming.value = false
     
-    // 如果消息为空，添加错误提示
-    if (!aiResponse) {
-      messages.value[aiMessageIndex].content = '抱歉，发生了错误，请重试。'
-    }
+    // 添加错误提示
+    messages.value.push({
+      content: '抱歉，发生了错误，请重试。',
+      type: 'ai'
+    })
   }
 }
 
