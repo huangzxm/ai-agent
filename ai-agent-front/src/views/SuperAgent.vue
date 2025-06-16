@@ -68,14 +68,33 @@ const sendMessage = async () => {
   
   eventSource.onmessage = (event) => {
     const data = event.data
-    if (data !== '[DONE]') {
-      aiResponse += data
-      // 更新AI消息内容
-      messages.value[aiMessageIndex].content = aiResponse
-    } else {
-      // 流结束
-      eventSource.close()
-      isStreaming.value = false
+    try {
+      // 检查是否是JSON格式的消息
+      const jsonData = JSON.parse(data)
+      if (jsonData.done) {
+        // 流结束标志
+        eventSource.close()
+        isStreaming.value = false
+        return
+      }
+      
+      // 如果有content字段，添加到响应中
+      if (jsonData.content) {
+        aiResponse += jsonData.content
+        // 更新AI消息内容
+        messages.value[aiMessageIndex].content = aiResponse
+      }
+    } catch (e) {
+      // 如果不是JSON格式，按原方式处理
+      if (data !== '[DONE]') {
+        aiResponse += data
+        // 更新AI消息内容
+        messages.value[aiMessageIndex].content = aiResponse
+      } else {
+        // 流结束
+        eventSource.close()
+        isStreaming.value = false
+      }
     }
   }
   
