@@ -1,0 +1,191 @@
+<template>
+  <div class="chat-page">
+    <div class="header">
+      <router-link to="/" class="back-btn">返回首页</router-link>
+      <h1 class="page-title">AI 恋爱大师</h1>
+      <div class="chat-id">聊天室ID: {{ chatId }}</div>
+    </div>
+    
+    <div class="chat-container">
+      <div class="chat-messages" ref="messagesContainer">
+        <div v-for="(msg, index) in messages" :key="index"
+             :class="['message-wrapper', msg.type === 'user' ? 'user-wrapper' : 'ai-wrapper']">
+          <div :class="['message', msg.type === 'user' ? 'user-message' : 'ai-message']">
+            <div v-if="msg.content">{{ msg.content }}</div>
+            <div v-else class="streaming">正在思考...</div>
+          </div>
+        </div>
+      </div>
+      
+      <div class="chat-input">
+        <input 
+          type="text" 
+          v-model="inputMessage" 
+          placeholder="请输入您的消息..." 
+          @keyup.enter="sendMessage"
+          :disabled="isStreaming"
+        />
+        <button @click="sendMessage" :disabled="isStreaming">发送</button>
+      </div>
+    </div>
+  </div>
+</template>
+
+<script setup>
+import { ref, onMounted, watch, nextTick } from 'vue'
+import { apiService } from '../api'
+
+// 生成随机聊天室ID
+const generateChatId = () => {
+  return 'chat_' + Math.random().toString(36).substr(2, 9)
+}
+
+const chatId = ref(generateChatId())
+const inputMessage = ref('')
+const messages = ref([])
+const isStreaming = ref(false)
+const messagesContainer = ref(null)
+
+// 发送消息
+const sendMessage = async () => {
+  if (!inputMessage.value.trim() || isStreaming.value) return
+  
+  // 添加用户消息到列表
+  messages.value.push({
+    content: inputMessage.value,
+    type: 'user'
+  })
+  
+  // 添加AI回复占位
+  const aiMessageIndex = messages.value.length
+  messages.value.push({
+    content: '',
+    type: 'ai'
+  })
+  
+  // 获取用户输入并清空输入框
+  const message = inputMessage.value
+  inputMessage.value = ''
+  isStreaming.value = true
+  
+  // 使用SSE接收流式响应
+  const eventSource = apiService.doChatWithLoveAppSse(message, chatId.value)
+  
+  let aiResponse = ''
+  
+  eventSource.onmessage = (event) => {
+    const data = event.data
+    if (data !== '[DONE]') {
+      aiResponse += data
+      // 更新AI消息内容
+      messages.value[aiMessageIndex].content = aiResponse
+    } else {
+      // 流结束
+      eventSource.close()
+      isStreaming.value = false
+    }
+  }
+  
+  eventSource.onerror = (error) => {
+    console.error('SSE错误:', error)
+    eventSource.close()
+    isStreaming.value = false
+    
+    // 如果消息为空，添加错误提示
+    if (!aiResponse) {
+      messages.value[aiMessageIndex].content = '抱歉，发生了错误，请重试。'
+    }
+  }
+}
+
+// 自动滚动到底部
+const scrollToBottom = () => {
+  if (messagesContainer.value) {
+    nextTick(() => {
+      messagesContainer.value.scrollTop = messagesContainer.value.scrollHeight
+    })
+  }
+}
+
+// 监听消息列表变化，自动滚动
+watch(() => messages.value.length, scrollToBottom)
+watch(() => messages.value[messages.value.length - 1]?.content, scrollToBottom)
+
+// 组件挂载时添加欢迎消息
+onMounted(() => {
+  messages.value.push({
+    content: '你好！我是AI恋爱大师，有什么情感问题需要咨询吗？',
+    type: 'ai'
+  })
+})
+</script>
+
+<style scoped>
+.chat-page {
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 15px 20px;
+  background-color: #4CAF50;
+  color: white;
+}
+
+.back-btn {
+  color: white;
+  text-decoration: none;
+  font-weight: bold;
+}
+
+.chat-id {
+  font-size: 14px;
+  opacity: 0.8;
+}
+
+.page-title {
+  margin: 0;
+  text-align: center;
+  flex-grow: 1;
+}
+
+.chat-container {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.message-wrapper {
+  display: flex;
+  margin-bottom: 15px;
+}
+
+.user-wrapper {
+  justify-content: flex-end;
+}
+
+.ai-wrapper {
+  justify-content: flex-start;
+}
+
+.message {
+  padding: 10px 15px;
+  border-radius: 18px;
+  max-width: 70%;
+  word-break: break-word;
+}
+
+.user-message {
+  background-color: #DCF8C6;
+  border-bottom-right-radius: 4px;
+}
+
+.ai-message {
+  background-color: #E0E0E0;
+  border-bottom-left-radius: 4px;
+}
+</style> 
