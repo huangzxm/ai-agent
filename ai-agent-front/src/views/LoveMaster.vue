@@ -90,6 +90,7 @@ const inputMessage = ref('')
 const messages = ref([])
 const isStreaming = ref(false)
 const messagesContainer = ref(null)
+const currentAiMessage = ref('') // 用于累积AI回复的内容
 
 // 发送消息
 const sendMessage = async () => {
@@ -106,6 +107,14 @@ const sendMessage = async () => {
   inputMessage.value = ''
   isStreaming.value = true
   
+  // 创建一个空的AI消息
+  currentAiMessage.value = ''
+  const aiMessageIndex = messages.value.length
+  messages.value.push({
+    content: currentAiMessage.value,
+    type: 'ai'
+  })
+  
   // 使用SSE接收流式响应
   const eventSource = apiService.doChatWithLoveAppSse(message, chatId.value)
   
@@ -121,21 +130,25 @@ const sendMessage = async () => {
         return
       }
       
-      // 如果有content字段，创建新的消息气泡
+      // 如果有content字段，累积到当前AI消息中
       if (jsonData.content) {
-        messages.value.push({
-          content: jsonData.content,
+        currentAiMessage.value += jsonData.content
+        // 更新消息内容
+        messages.value[aiMessageIndex] = {
+          content: currentAiMessage.value,
           type: 'ai'
-        })
+        }
       }
     } catch (e) {
       // 如果不是JSON格式，按原方式处理
       if (data !== '[DONE]') {
-        // 创建新的消息气泡
-        messages.value.push({
-          content: data,
+        // 累积到当前AI消息中
+        currentAiMessage.value += data
+        // 更新消息内容
+        messages.value[aiMessageIndex] = {
+          content: currentAiMessage.value,
           type: 'ai'
-        })
+        }
       } else {
         // 流结束
         eventSource.close()
@@ -149,11 +162,13 @@ const sendMessage = async () => {
     eventSource.close()
     isStreaming.value = false
     
-    // 添加错误提示
-    messages.value.push({
-      content: '抱歉，发生了错误，请重试。',
-      type: 'ai'
-    })
+    // 更新错误提示
+    if (currentAiMessage.value === '') {
+      messages.value[aiMessageIndex] = {
+        content: '抱歉，发生了错误，请重试。',
+        type: 'ai'
+      }
+    }
   }
 }
 
@@ -172,8 +187,9 @@ watch(() => messages.value[messages.value.length - 1]?.content, scrollToBottom)
 
 // 组件挂载时添加欢迎消息
 onMounted(() => {
+  currentAiMessage.value = '你好！😊 我是AI恋爱大师，有什么情感问题需要咨询吗？'
   messages.value.push({
-    content: '你好！😊 我是AI恋爱大师，有什么情感问题需要咨询吗？',
+    content: currentAiMessage.value,
     type: 'ai'
   })
 })
