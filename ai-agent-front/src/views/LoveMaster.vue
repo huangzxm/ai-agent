@@ -27,8 +27,8 @@
                :class="['message-wrapper', msg.type === 'user' ? 'user-wrapper' : 'ai-wrapper']">
             <div class="avatar-container">
               <div :class="['avatar', msg.type === 'user' ? 'user-avatar' : 'ai-avatar']">
-                <img v-if="msg.type === 'user'" src="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='40' height='40' viewBox='0 0 24 24' fill='none' stroke='%23fff' stroke-width='2'><path d='M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2'></path><circle cx='12' cy='7' r='4'></circle></svg>" alt="用户">
-                <img v-if="msg.type === 'ai'" src="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='40' height='40' viewBox='0 0 24 24' fill='none' stroke='%23fff' stroke-width='2'><rect x='3' y='3' width='18' height='18' rx='2'></rect><circle cx='8.5' cy='8.5' r='1.5'></circle><circle cx='15.5' cy='8.5' r='1.5'></circle><path d='M7 13s1.5 2 5 2 5-2 5-2'></path></svg>" alt="AI">
+                <img v-if="msg.type === 'user'" src="../assets/images/user-logo.png" alt="用户">
+                <img v-if="msg.type === 'ai'" src="../assets/images/robit-logo.png" alt="AI">
               </div>
             </div>
             <div :class="['message', msg.type === 'user' ? 'user-message' : 'ai-message']">
@@ -261,8 +261,10 @@ onMounted(() => {
   flex: 1;
   display: flex;
   flex-direction: column;
-  overflow: hidden;
-  height: 100vh;
+  height: 100%;
+  max-width: 1200px;
+  margin: 0 auto;
+  width: 100%;
 }
 
 .header {
@@ -291,7 +293,9 @@ onMounted(() => {
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  position: relative;
+  width: 100%;
+  max-width: 1200px;
+  margin: 0 auto;
 }
 
 .chat-messages {
@@ -331,18 +335,18 @@ onMounted(() => {
   justify-content: center;
 }
 
-.user-avatar {
-  background-color: #2b5ebd;
-}
-
-.ai-avatar {
-  background-color: #4CAF50;
-}
-
 .avatar img {
   width: 100%;
   height: 100%;
   object-fit: cover;
+}
+
+.user-avatar {
+  background-color: #4a61dd;
+}
+
+.ai-avatar {
+  background-color: #1e1e1e;
 }
 
 .message {
