@@ -29,6 +29,19 @@ export const apiService = {
   // AI超级智能体应用聊天接口
   doChatWithManus(message) {
     return setupSSE('/ai/manus/chat', { message })
+  },
+
+  // AI智能客服统一入口：SSE 命名事件 route/stage/message/transfer/done/fail
+  doChatWithCs(message, chatId, userId, token) {
+    const params = { message, chatId }
+    if (userId) params.userId = userId
+    if (token) params.token = token
+    return setupSSE('/cs/chat/sse', params)
+  },
+
+  // 客服运营指标
+  getCsMetrics() {
+    return apiClient.get('/cs/admin/metrics')
   }
 }
 

@@ -7,14 +7,13 @@ const routes = [
     component: () => import('../views/Home.vue')
   },
   {
-    path: '/love-master',
-    name: 'LoveMaster',
-    component: () => import('../views/LoveMaster.vue')
+    path: '/cs',
+    name: 'CustomerService',
+    component: () => import('../views/CsChat.vue')
   },
   {
-    path: '/super-agent',
-    name: 'SuperAgent',
-    component: () => import('../views/SuperAgent.vue')
+    path: '/:pathMatch(.*)*',
+    redirect: '/cs'
   }
 ]
 
@@ -23,4 +22,4 @@ const router = createRouter({
   routes
 })
 
-export default router 
+export default router

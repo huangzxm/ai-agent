@@ -28,38 +28,41 @@
     </div>
     
     <div class="main-content">
-      <h1 class="page-title">AI 应用中心</h1>
-      <p class="subtitle">选择一个AI应用开始你的极客之旅</p>
-      
+      <h1 class="page-title">AI 智能客服中心</h1>
+      <p class="subtitle">会话管理 · 意图路由 · RAG 检索 · Agent 执行 · 人工兜底</p>
+
       <div class="apps-grid">
         <div class="app-card">
           <div class="card-icon love-master-icon">
-            <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path></svg>
+            <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
           </div>
           <div class="card-content">
-            <h2>AI 恋爱大师</h2>
-            <p>与AI恋爱大师聊天，获取专业情感建议和恋爱技巧指导</p>
+            <h2>AI 智能客服</h2>
+            <p>统一客服入口，自动识别意图并分派到知识库问答、任务执行或人工客服</p>
             <div class="card-tags">
-              <span class="tag">情感咨询</span>
-              <span class="tag">恋爱技巧</span>
+              <span class="tag">知识库问答</span>
+              <span class="tag">订单售后</span>
+              <span class="tag">转人工</span>
             </div>
           </div>
-          <router-link to="/love-master" class="card-btn">开始使用</router-link>
+          <router-link to="/cs" class="card-btn">进入对话</router-link>
         </div>
-        
+
         <div class="app-card">
           <div class="card-icon super-agent-icon">
             <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="2" y1="12" x2="22" y2="12"></line><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path></svg>
           </div>
           <div class="card-content">
-            <h2>AI 超级智能体</h2>
-            <p>体验新一代AI超级智能体，解决各种复杂问题和技术挑战</p>
+            <h2>系统能力</h2>
+            <p>规则+LLM 混合路由、FSM 约束的 ReAct Agent、工具网关鉴权与多级降级</p>
             <div class="card-tags">
-              <span class="tag">多领域专家</span>
-              <span class="tag">技术支持</span>
+              <span class="tag">意图路由</span>
+              <span class="tag">工具网关</span>
+              <span class="tag">安全风控</span>
+              <span class="tag">异常降级</span>
             </div>
           </div>
-          <router-link to="/super-agent" class="card-btn">开始使用</router-link>
+          <router-link to="/cs" class="card-btn">体验客服系统</router-link>
         </div>
       </div>
     </div>
