@@ -7,13 +7,24 @@ const routes = [
     component: () => import('../views/Home.vue')
   },
   {
+    path: '/cs/rag',
+    name: 'CsRag',
+    component: () => import('../views/CsChat.vue'),
+    props: { mode: 'RAG' }
+  },
+  {
+    path: '/cs/agent',
+    name: 'CsAgent',
+    component: () => import('../views/CsChat.vue'),
+    props: { mode: 'AGENT' }
+  },
+  {
     path: '/cs',
-    name: 'CustomerService',
-    component: () => import('../views/CsChat.vue')
+    redirect: '/cs/rag'
   },
   {
     path: '/:pathMatch(.*)*',
-    redirect: '/cs'
+    redirect: '/'
   }
 ]
 

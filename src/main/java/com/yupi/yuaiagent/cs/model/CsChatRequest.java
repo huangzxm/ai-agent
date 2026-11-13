@@ -18,4 +18,7 @@ public class CsChatRequest {
     private String token;
 
     private String channel = "web";
+
+    /** 前端入口模式：AUTO（自动路由）/ RAG（强制知识库）/ AGENT（强制任务执行） */
+    private String mode = "AUTO";
 }

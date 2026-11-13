@@ -53,8 +53,10 @@ public class CsChatController {
                                  @RequestParam(required = false) String chatId,
                                  @RequestParam(required = false) String userId,
                                  @RequestParam(required = false) String token,
-                                 @RequestParam(defaultValue = "web") String channel) {
+                                 @RequestParam(defaultValue = "web") String channel,
+                                 @RequestParam(defaultValue = "AUTO") String mode) {
         CsChatRequest request = buildRequest(message, chatId, userId, token, channel);
+        request.setMode(mode);
         SseEmitter emitter = new SseEmitter(180000L);
 
         // 异步推理，避免阻塞 Web 容器线程

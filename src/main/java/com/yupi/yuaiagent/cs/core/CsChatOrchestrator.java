@@ -104,6 +104,7 @@ public class CsChatOrchestrator {
                 decision.setCategory("refund");
             } else {
                 decision = intentRouter.route(message, session);
+                decision = applyModeOverride(decision, request.getMode());
             }
             metricsCollector.recordRoute(decision.getRoute().name());
             listener.onRoute(decision);
@@ -221,6 +222,33 @@ public class CsChatOrchestrator {
                 .transferId(record.getTransferId()).transferAgent(record.getAssignedAgent())
                 .traces(new ArrayList<>(record.getContextSnapshot()))
                 .costMillis(System.currentTimeMillis() - start).build();
+    }
+
+    /**
+     * 前端双入口：RAG 入口强制知识库，Agent 入口强制任务执行；转人工意图始终优先
+     */
+    private RouteDecision applyModeOverride(RouteDecision decision, String mode) {
+        if (mode == null || "AUTO".equalsIgnoreCase(mode) || decision.getRoute() == RouteType.HUMAN) {
+            return decision;
+        }
+        if ("RAG".equalsIgnoreCase(mode)) {
+            decision.setRoute(RouteType.CHAT);
+            if (decision.getSkillId() != null) {
+                decision.setReason("知识库问答入口：" + decision.getReason());
+            }
+            return decision;
+        }
+        if ("AGENT".equalsIgnoreCase(mode)) {
+            decision.setRoute(RouteType.AGENT);
+            if (decision.getSkillId() == null) {
+                decision.setSkillId("ORDER_SKILL");
+            }
+            if (decision.getCategory() == null) {
+                decision.setCategory("order");
+            }
+            decision.setReason("智能体任务入口：" + (decision.getReason() == null ? "" : decision.getReason()));
+        }
+        return decision;
     }
 
     private TransferReason resolveReason(RouteDecision decision) {

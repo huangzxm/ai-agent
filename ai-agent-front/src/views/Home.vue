@@ -1,273 +1,572 @@
 <template>
-  <div class="home-container">
-    <div class="sidebar">
-      <div class="logo">H Manus</div>
-      <div class="menu-item active">
-        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><polyline points="9 22 9 12 15 12 15 22"></polyline></svg>
-        首页
-      </div>
-      <router-link to="/love-master" class="menu-item">
-        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
-        聊天
-      </router-link>
-      <div class="menu-item">
-        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
-        设置
-      </div>
-      
-      <div class="footer-menu">
-        <div class="menu-item">
-          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
-          帮助
-        </div>
-        <div class="menu-item">
-          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
-          个人信息
-        </div>
-      </div>
+  <div class="home" :style="glow" @mousemove="onMove">
+    <!-- 动态背景 -->
+    <div class="bg" aria-hidden="true">
+      <span class="orb orb-1"></span>
+      <span class="orb orb-2"></span>
+      <span class="orb orb-3"></span>
     </div>
-    
-    <div class="main-content">
-      <h1 class="page-title">AI 智能客服中心</h1>
-      <p class="subtitle">会话管理 · 意图路由 · RAG 检索 · Agent 执行 · 人工兜底</p>
 
-      <div class="apps-grid">
-        <div class="app-card">
-          <div class="card-icon love-master-icon">
-            <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
-          </div>
-          <div class="card-content">
-            <h2>AI 智能客服</h2>
-            <p>统一客服入口，自动识别意图并分派到知识库问答、任务执行或人工客服</p>
-            <div class="card-tags">
-              <span class="tag">知识库问答</span>
-              <span class="tag">订单售后</span>
-              <span class="tag">转人工</span>
-            </div>
-          </div>
-          <router-link to="/cs" class="card-btn">进入对话</router-link>
-        </div>
-
-        <div class="app-card">
-          <div class="card-icon super-agent-icon">
-            <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="2" y1="12" x2="22" y2="12"></line><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path></svg>
-          </div>
-          <div class="card-content">
-            <h2>系统能力</h2>
-            <p>规则+LLM 混合路由、FSM 约束的 ReAct Agent、工具网关鉴权与多级降级</p>
-            <div class="card-tags">
-              <span class="tag">意图路由</span>
-              <span class="tag">工具网关</span>
-              <span class="tag">安全风控</span>
-              <span class="tag">异常降级</span>
-            </div>
-          </div>
-          <router-link to="/cs" class="card-btn">体验客服系统</router-link>
-        </div>
+    <nav class="nav">
+      <div class="brand">
+        <span class="brand-mark">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8"
+               stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 3l1.9 4.6L18.5 9.5 13.9 11.4 12 16l-1.9-4.6L5.5 9.5l4.6-1.9L12 3z"/>
+            <path d="M18 15l.9 2.1L21 18l-2.1.9L18 21l-.9-2.1L15 18l2.1-.9L18 15z"/>
+          </svg>
+        </span>
+        <span class="brand-name">小蜜</span>
+        <span class="brand-divider"></span>
+        <span class="brand-desc">AI 客服平台</span>
       </div>
-    </div>
+      <div class="status">
+        <span class="status-dot"></span>
+        服务在线
+      </div>
+    </nav>
+
+    <main class="main">
+      <div class="hero">
+        <div class="eyebrow">SUPPORT INTELLIGENCE</div>
+        <h1 class="title">
+          懂业务的<span class="title-accent">AI 客服</span><br />
+          回答有依据，任务能落地
+        </h1>
+        <p class="subtitle">
+          基于知识库的精准问答与可执行任务智能体，同一套会话、路由与人工兜底体系。
+        </p>
+      </div>
+
+      <div class="entries">
+        <!-- RAG -->
+        <router-link to="/cs/rag" class="card card-rag">
+          <div class="card-glow"></div>
+          <div class="card-head">
+            <span class="icon-box">
+              <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor"
+                   stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H19v15H6.5A2.5 2.5 0 0 0 4 20.5V5.5z"/>
+                <path d="M19 18v3H6.5A2.5 2.5 0 0 1 4 18.5"/>
+                <path d="M8 7h7M8 10.5h5"/>
+              </svg>
+            </span>
+            <span class="tag">RAG</span>
+          </div>
+          <h2>知识库问答</h2>
+          <p class="card-desc">
+            售后政策、物流时效、发票流程与账号安全，基于官方知识库检索作答，低置信自动转人工。
+          </p>
+          <ul class="card-points">
+            <li>双路召回 + 相似度阈值</li>
+            <li>业务元数据精准过滤</li>
+            <li>答案带出处与置信度</li>
+          </ul>
+          <div class="card-foot">
+            <span class="path">/cs/rag</span>
+            <span class="go">
+              开始提问
+              <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor"
+                   stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M5 12h14M13 6l6 6-6 6"/>
+              </svg>
+            </span>
+          </div>
+        </router-link>
+
+        <!-- Agent -->
+        <router-link to="/cs/agent" class="card card-agent">
+          <div class="card-glow"></div>
+          <div class="card-head">
+            <span class="icon-box">
+              <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor"
+                   stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="4" y="7" width="16" height="12" rx="3"/>
+                <path d="M12 3v4M8 12h.01M16 12h.01M9 16h6"/>
+                <path d="M2 12v2M22 12v2"/>
+              </svg>
+            </span>
+            <span class="tag">Agent</span>
+          </div>
+          <h2>智能体助手</h2>
+          <p class="card-desc">
+            查订单、办退款、追踪采购进度。多步骤任务由状态机约束执行，工具调用全程鉴权。
+          </p>
+          <ul class="card-points">
+            <li>FSM 约束 + ReAct 循环</li>
+            <li>越权调用代码级拦截</li>
+            <li>失败自动降级人工</li>
+          </ul>
+          <div class="card-foot">
+            <span class="path">/cs/agent</span>
+            <span class="go">
+              进入工作台
+              <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor"
+                   stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M5 12h14M13 6l6 6-6 6"/>
+              </svg>
+            </span>
+          </div>
+        </router-link>
+      </div>
+
+      <div class="features">
+        <span><i></i>混合意图路由</span>
+        <span><i></i>工具网关鉴权</span>
+        <span><i></i>关键服务熔断</span>
+        <span><i></i>统一人工交接</span>
+      </div>
+    </main>
+
+    <footer class="footer">Spring AI · RAG · ReAct · 事件驱动降级</footer>
   </div>
 </template>
 
 <script setup>
-// Home page component
+import { ref } from 'vue'
+
+const glow = ref({ '--mx': '50%', '--my': '20%' })
+let last = 0
+
+const onMove = (e) => {
+  const now = performance.now()
+  if (now - last < 24) return
+  last = now
+  const rect = e.currentTarget.getBoundingClientRect()
+  glow.value = {
+    '--mx': `${e.clientX - rect.left}px`,
+    '--my': `${e.clientY - rect.top}px`
+  }
+}
 </script>
 
 <style scoped>
-.home-container {
-  height: 100vh;
-  width: 100vw;
-  display: flex;
-  background-color: #121212;
-  color: #e0e0e0;
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+.home {
+  position: relative;
+  height: 100%;
+  overflow-y: auto;
+  overflow-x: hidden;
+  background-color: #fafafc;
+  background-image:
+    linear-gradient(rgba(20, 20, 40, 0.028) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(20, 20, 40, 0.028) 1px, transparent 1px);
+  background-size: 48px 48px;
+  color: #14141b;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* 动态光斑 */
+.bg {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
   overflow: hidden;
 }
 
-.sidebar {
-  width: 240px;
-  background-color: #1a1a1a;
-  border-right: 1px solid #333;
-  padding: 20px 0;
-  display: flex;
-  flex-direction: column;
-  flex-shrink: 0;
+.orb {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(78px);
+  opacity: 0.9;
+  will-change: transform;
 }
 
-.logo {
-  font-size: 24px;
-  font-weight: bold;
-  padding: 0 20px;
-  margin-bottom: 40px;
-  color: #e0e0e0;
+.orb-1 {
+  width: 660px;
+  height: 660px;
+  top: -200px;
+  left: -160px;
+  background: radial-gradient(circle, rgba(109, 91, 232, 0.5), transparent 68%);
+  animation: drift-a 22s ease-in-out infinite;
 }
 
-.menu-item {
+.orb-2 {
+  width: 620px;
+  height: 620px;
+  top: 2%;
+  right: -200px;
+  background: radial-gradient(circle, rgba(59, 130, 246, 0.44), transparent 68%);
+  animation: drift-b 26s ease-in-out infinite;
+}
+
+.orb-3 {
+  width: 560px;
+  height: 560px;
+  bottom: -220px;
+  left: 28%;
+  background: radial-gradient(circle, rgba(236, 72, 153, 0.32), transparent 70%);
+  animation: drift-c 30s ease-in-out infinite;
+}
+
+@keyframes drift-a {
+  0%, 100% { transform: translate3d(0, 0, 0) scale(1); }
+  33% { transform: translate3d(76px, -54px, 0) scale(1.1); }
+  66% { transform: translate3d(-44px, 42px, 0) scale(0.94); }
+}
+
+@keyframes drift-b {
+  0%, 100% { transform: translate3d(0, 0, 0) scale(1); }
+  40% { transform: translate3d(-70px, 50px, 0) scale(1.08); }
+  75% { transform: translate3d(36px, -30px, 0) scale(0.95); }
+}
+
+@keyframes drift-c {
+  0%, 100% { transform: translate3d(0, 0, 0) scale(1); }
+  50% { transform: translate3d(56px, -48px, 0) scale(1.12); }
+}
+
+/* 鼠标跟随微光 */
+.home::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 1;
+  background: radial-gradient(560px circle at var(--mx) var(--my), rgba(109, 91, 232, 0.08), transparent 65%);
+  transition: background 0.15s ease-out;
+}
+
+.nav {
+  position: relative;
+  z-index: 3;
   display: flex;
   align-items: center;
-  padding: 12px 20px;
-  color: #999;
-  cursor: pointer;
-  margin-bottom: 5px;
-  border-left: 3px solid transparent;
-  transition: all 0.2s ease;
-  text-decoration: none;
+  justify-content: space-between;
+  height: 64px;
+  padding: 0 36px;
+  border-bottom: 1px solid #ececf2;
+  background: rgba(250, 250, 252, 0.75);
+  backdrop-filter: blur(14px);
 }
 
-.menu-item svg {
-  margin-right: 12px;
-}
-
-.menu-item:hover {
-  background-color: #252525;
-  color: #e0e0e0;
-}
-
-.menu-item.active {
-  color: #4a61dd;
-  background-color: #252525;
-  border-left-color: #4a61dd;
-}
-
-.footer-menu {
-  margin-top: auto;
-  border-top: 1px solid #333;
-  padding-top: 15px;
-}
-
-.main-content {
-  flex: 1;
-  padding: 40px;
-  overflow-y: auto;
+.brand {
   display: flex;
-  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+}
+
+.brand-mark {
+  width: 28px;
+  height: 28px;
+  display: flex;
   align-items: center;
   justify-content: center;
+  border-radius: 8px;
+  color: #6d5be8;
+  background: rgba(109, 91, 232, 0.08);
+  border: 1px solid rgba(109, 91, 232, 0.2);
 }
 
-.page-title {
-  font-size: 28px;
+.brand-name {
+  font-size: 15px;
   font-weight: 600;
-  margin-bottom: 10px;
-  background: linear-gradient(90deg, #4a61dd, #7C3AED);
+  letter-spacing: 0.2px;
+}
+
+.brand-divider {
+  width: 1px;
+  height: 14px;
+  background: #e2e2ec;
+}
+
+.brand-desc {
+  font-size: 13px;
+  color: #8a8a9c;
+}
+
+.status {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 12px;
+  color: #5c5c70;
+  padding: 5px 11px;
+  border: 1px solid #e6e6ee;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.8);
+  box-shadow: 0 1px 2px rgba(20, 20, 40, 0.03);
+}
+
+.status-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #22c55e;
+  box-shadow: 0 0 0 3px rgba(34, 197, 94, 0.15);
+  animation: breathe 2.4s ease-in-out infinite;
+}
+
+@keyframes breathe {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.45; }
+}
+
+.main {
+  position: relative;
+  z-index: 2;
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 76px 36px 40px;
+}
+
+.hero {
+  max-width: 660px;
+  animation: rise 0.6s ease both;
+}
+
+.eyebrow {
+  font-size: 11px;
+  letter-spacing: 2.6px;
+  color: #6d5be8;
+  font-weight: 600;
+  margin-bottom: 18px;
+}
+
+.title {
+  font-size: 44px;
+  line-height: 1.24;
+  font-weight: 650;
+  letter-spacing: -0.5px;
+  margin: 0 0 18px;
+  color: #14141b;
+}
+
+.title-accent {
+  background: linear-gradient(96deg, #6d5be8, #3b82f6);
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
 }
 
 .subtitle {
-  color: #999;
-  margin-bottom: 40px;
+  font-size: 15px;
+  line-height: 1.75;
+  color: #5c5c70;
+  margin: 0;
 }
 
-.apps-grid {
+.entries {
   display: grid;
-  grid-template-columns: repeat(2, minmax(400px, 450px));
-  gap: 25px;
-  justify-content: center;
-  max-width: 950px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px;
+  margin-top: 52px;
 }
 
-.app-card {
-  background-color: #1e1e1e;
-  border: 1px solid #333;
-  border-radius: 10px;
-  padding: 25px;
+.card {
+  position: relative;
   display: flex;
   flex-direction: column;
-  transition: all 0.3s ease;
-  position: relative;
+  padding: 22px 24px 18px;
+  border: 1px solid #e8e8f0;
+  border-radius: 14px;
+  background: #ffffff;
+  box-shadow: 0 1px 2px rgba(20, 20, 40, 0.04), 0 10px 28px rgba(20, 20, 40, 0.045);
+  text-decoration: none;
+  color: inherit;
   overflow: hidden;
+  transition: border-color 0.22s ease, transform 0.22s ease, box-shadow 0.22s ease;
+  animation: rise 0.6s ease both;
 }
 
-.app-card:hover {
-  transform: translateY(-5px);
-  box-shadow: 0 10px 20px rgba(0, 0, 0, 0.3);
-  border-color: #4a61dd;
+.card-rag { animation-delay: 0.08s; }
+.card-agent { animation-delay: 0.16s; }
+
+.card:hover {
+  transform: translateY(-3px);
+  border-color: #d8d8e6;
+  box-shadow: 0 2px 4px rgba(20, 20, 40, 0.05), 0 18px 44px rgba(20, 20, 40, 0.09);
 }
 
-.app-card::before {
-  content: '';
+.card-glow {
   position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 3px;
-  background: linear-gradient(90deg, #4a61dd, #7C3AED);
-  transform: scaleX(0);
-  transform-origin: left;
-  transition: transform 0.3s ease;
+  inset: -1px;
+  border-radius: inherit;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.25s ease;
 }
 
-.app-card:hover::before {
-  transform: scaleX(1);
+.card-rag .card-glow {
+  background: radial-gradient(420px circle at 20% 0%, rgba(109, 91, 232, 0.09), transparent 70%);
 }
 
-.card-icon {
+.card-agent .card-glow {
+  background: radial-gradient(420px circle at 20% 0%, rgba(59, 130, 246, 0.09), transparent 70%);
+}
+
+.card:hover .card-glow {
+  opacity: 1;
+}
+
+.card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 18px;
+}
+
+.icon-box {
+  width: 38px;
+  height: 38px;
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 60px;
-  height: 60px;
-  border-radius: 50%;
-  margin-bottom: 20px;
+  border-radius: 10px;
+  border: 1px solid #e8e8f0;
+  background: #fafafc;
+  color: #6f6f82;
+  transition: color 0.2s ease, border-color 0.2s ease, background 0.2s ease;
 }
 
-.love-master-icon {
-  background-color: rgba(76, 175, 80, 0.1);
-  color: #4CAF50;
+.card-rag:hover .icon-box {
+  color: #6d5be8;
+  border-color: rgba(109, 91, 232, 0.28);
+  background: rgba(109, 91, 232, 0.06);
 }
 
-.super-agent-icon {
-  background-color: rgba(74, 97, 221, 0.1);
-  color: #4a61dd;
-}
-
-.card-content {
-  flex: 1;
-}
-
-.app-card h2 {
-  font-size: 22px;
-  font-weight: 600;
-  margin-bottom: 12px;
-}
-
-.app-card p {
-  color: #999;
-  margin-bottom: 20px;
-  line-height: 1.5;
-}
-
-.card-tags {
-  display: flex;
-  gap: 10px;
-  margin-bottom: 25px;
+.card-agent:hover .icon-box {
+  color: #3b82f6;
+  border-color: rgba(59, 130, 246, 0.28);
+  background: rgba(59, 130, 246, 0.06);
 }
 
 .tag {
-  background-color: #252525;
-  color: #999;
-  padding: 4px 10px;
-  border-radius: 4px;
-  font-size: 12px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 1px;
+  padding: 3px 8px;
+  border-radius: 5px;
+  border: 1px solid #e6e6ee;
+  color: #8a8a9c;
+  background: #fafafc;
 }
 
-.card-btn {
-  background: linear-gradient(90deg, #4a61dd, #7C3AED);
-  color: white;
-  border: none;
-  padding: 12px 0;
-  border-radius: 6px;
-  cursor: pointer;
+.card h2 {
+  font-size: 19px;
+  font-weight: 600;
+  margin: 0 0 10px;
+  letter-spacing: -0.2px;
+  color: #14141b;
+}
+
+.card-desc {
+  font-size: 13px;
+  line-height: 1.75;
+  color: #5c5c70;
+  margin: 0 0 16px;
+  min-height: 66px;
+}
+
+.card-points {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.card-points li {
+  position: relative;
+  padding-left: 16px;
+  font-size: 12.5px;
+  color: #6b6b80;
+}
+
+.card-points li::before {
+  content: '';
+  position: absolute;
+  left: 2px;
+  top: 7px;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: #d4d4e0;
+}
+
+.card-rag:hover .card-points li::before { background: #6d5be8; }
+.card-agent:hover .card-points li::before { background: #3b82f6; }
+
+.card-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-top: 14px;
+  border-top: 1px solid #eeeef4;
+  margin-top: auto;
+}
+
+.path {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11px;
+  color: #a0a0b2;
+}
+
+.go {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12.5px;
   font-weight: 500;
-  text-align: center;
-  text-decoration: none;
-  transition: all 0.2s ease;
+  color: #6b6b80;
+  transition: color 0.2s ease;
 }
 
-.card-btn:hover {
-  opacity: 0.9;
-  transform: translateY(-2px);
+.go svg {
+  transition: transform 0.22s ease;
 }
-</style> 
+
+.card:hover .go {
+  color: #14141b;
+}
+
+.card:hover .go svg {
+  transform: translateX(3px);
+}
+
+.features {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 30px;
+  margin-top: 38px;
+  animation: rise 0.6s 0.24s ease both;
+}
+
+.features span {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: #7e7e92;
+}
+
+.features i {
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: #cfcfdc;
+}
+
+.footer {
+  position: relative;
+  z-index: 2;
+  text-align: center;
+  padding: 28px 0 30px;
+  font-size: 11px;
+  letter-spacing: 0.6px;
+  color: #a8a8ba;
+}
+
+@keyframes rise {
+  from { opacity: 0; transform: translateY(14px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@media (max-width: 900px) {
+  .title { font-size: 32px; }
+  .entries { grid-template-columns: 1fr; }
+  .main { padding: 48px 22px 30px; }
+  .nav { padding: 0 22px; }
+}
+</style>

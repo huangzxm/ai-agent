@@ -32,8 +32,8 @@ export const apiService = {
   },
 
   // AI智能客服统一入口：SSE 命名事件 route/stage/message/transfer/done/fail
-  doChatWithCs(message, chatId, userId, token) {
-    const params = { message, chatId }
+  doChatWithCs(message, chatId, userId, token, mode = 'AUTO') {
+    const params = { message, chatId, mode }
     if (userId) params.userId = userId
     if (token) params.token = token
     return setupSSE('/cs/chat/sse', params)

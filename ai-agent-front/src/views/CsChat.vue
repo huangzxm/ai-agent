@@ -1,112 +1,193 @@
 <template>
-  <div class="chat-page">
-    <div class="sidebar">
-      <div class="logo">AI 客服中心</div>
-      <button class="new-chat-btn" @click="newChat">
-        <span class="btn-icon">+</span>
-        开启新会话
+  <div class="chat" :class="themeClass">
+    <!-- 动态背景 -->
+    <div class="bg" aria-hidden="true">
+      <span class="orb orb-1"></span>
+      <span class="orb orb-2"></span>
+      <span class="orb orb-3"></span>
+    </div>
+
+    <aside class="sidebar">
+      <router-link to="/" class="back">
+        <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor"
+             stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M19 12H5M11 18l-6-6 6-6"/>
+        </svg>
+        返回首页
+      </router-link>
+
+      <div class="brand">
+        <span class="icon-box">
+          <svg v-if="mode === 'RAG'" viewBox="0 0 24 24" width="18" height="18" fill="none"
+               stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H19v15H6.5A2.5 2.5 0 0 0 4 20.5V5.5z"/>
+            <path d="M19 18v3H6.5A2.5 2.5 0 0 1 4 18.5"/>
+            <path d="M8 7h7M8 10.5h5"/>
+          </svg>
+          <svg v-else viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor"
+               stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="4" y="7" width="16" height="12" rx="3"/>
+            <path d="M12 3v4M8 12h.01M16 12h.01M9 16h6M2 12v2M22 12v2"/>
+          </svg>
+        </span>
+        <div>
+          <div class="brand-name">{{ theme.title }}</div>
+          <div class="brand-sub">{{ theme.subtitle }}</div>
+        </div>
+      </div>
+
+      <button class="new-chat" @click="newChat">
+        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor"
+             stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+        新会话
       </button>
 
-      <div class="identity-section">
-        <div class="section-title">当前身份（演示鉴权）</div>
-        <select v-model="identity" class="identity-select" @change="onIdentityChange">
+      <div class="section">
+        <div class="section-title">当前身份</div>
+        <select v-model="identity" class="select" @change="onIdentityChange">
           <option v-for="item in identityOptions" :key="item.value" :value="item.value">
             {{ item.label }}
           </option>
         </select>
       </div>
 
-      <div class="history-section">
-        <div class="section-title">试试这些问题</div>
-        <div v-for="question in sampleQuestions" :key="question"
-             class="chat-history-item" @click="askSample(question)">
-          <span>{{ question }}</span>
+      <div class="section samples">
+        <div class="section-title">试试这样问</div>
+        <button v-for="q in theme.samples" :key="q" class="sample" @click="askSample(q)">
+          <span class="sample-arrow">›</span>{{ q }}
+        </button>
+      </div>
+
+      <div class="side-foot">
+        <span class="mode-pill">{{ theme.tag }}</span>
+        <span>{{ theme.hint }}</span>
+      </div>
+    </aside>
+
+    <main class="main">
+      <header class="header">
+        <div class="header-left">
+          <h1>{{ theme.title }}</h1>
+          <span class="chat-id">{{ chatId }}</span>
         </div>
-      </div>
-
-      <div class="sidebar-footer">
-        路由：规则 + LLM 语义识别<br />
-        CHAT / AGENT / HUMAN 三层分流
-      </div>
-    </div>
-
-    <div class="main-content">
-      <div class="header">
-        <h1 class="page-title">
-          AI 智能客服
-          <span class="chat-id">会话ID: {{ chatId }}</span>
-        </h1>
-        <div class="header-tags">
+        <div class="header-right">
           <span v-if="routeInfo.route" :class="['route-tag', routeClass(routeInfo.route)]">
             {{ routeLabel(routeInfo.route) }}
           </span>
           <span v-if="routeInfo.route" class="confidence">
-            置信度 {{ (routeInfo.confidence * 100).toFixed(0) }}%
+            置信度 {{ ((routeInfo.confidence || 0) * 100).toFixed(0) }}%
           </span>
         </div>
-      </div>
+      </header>
 
-      <div class="chat-container">
-        <div class="chat-messages" ref="messagesContainer">
+      <div class="messages" ref="messagesContainer">
+        <div class="messages-inner">
           <div v-for="(msg, index) in messages" :key="index"
-               :class="['message-wrapper', msg.type === 'user' ? 'user-wrapper' : 'ai-wrapper']">
-            <div class="avatar-container">
-              <div :class="['avatar', msg.type === 'user' ? 'user-avatar' : 'ai-avatar']">
-                <img v-if="msg.type === 'user'" src="../assets/images/user-logo.png" alt="用户">
-                <img v-if="msg.type === 'ai'" src="../assets/images/robit-logo.png" alt="AI">
-              </div>
+               :class="['row', msg.type === 'user' ? 'row-user' : 'row-ai']">
+            <div :class="['avatar', msg.type === 'user' ? 'avatar-user' : 'avatar-ai']">
+              <svg v-if="msg.type === 'user'" viewBox="0 0 24 24" width="14" height="14" fill="none"
+                   stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="8" r="4"/>
+                <path d="M4 21c0-4 3.6-7 8-7s8 3 8 7"/>
+              </svg>
+              <svg v-else-if="mode === 'RAG'" viewBox="0 0 24 24" width="14" height="14" fill="none"
+                   stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H19v15H6.5A2.5 2.5 0 0 0 4 20.5V5.5z"/>
+                <path d="M19 18v3H6.5A2.5 2.5 0 0 1 4 18.5M8 7h7"/>
+              </svg>
+              <svg v-else viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor"
+                   stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="4" y="7" width="16" height="12" rx="3"/>
+                <path d="M12 3v4M8 12h.01M16 12h.01M9 16h6"/>
+              </svg>
             </div>
-            <div :class="['message', msg.type === 'user' ? 'user-message' : 'ai-message']">
-              <div v-if="msg.type === 'ai' && msg.meta" class="message-meta">
+
+            <div :class="['bubble', msg.type === 'user' ? 'bubble-user' : 'bubble-ai']">
+              <div v-if="msg.type === 'ai' && msg.meta" class="meta">
                 <span :class="['route-tag', routeClass(msg.meta.route)]">{{ routeLabel(msg.meta.route) }}</span>
-                <span v-if="msg.meta.cacheHit" class="meta-chip">FAQ 缓存命中</span>
-                <span v-if="msg.meta.traces && msg.meta.traces.length" class="meta-chip">
-                  {{ msg.meta.traces.join(' / ') }}
+                <span v-if="msg.meta.cacheHit" class="chip">缓存命中</span>
+                <span v-if="msg.meta.traces && msg.meta.traces.length" class="chip">
+                  {{ msg.meta.traces.slice(0, 3).join(' · ') }}
                 </span>
-                <span v-if="msg.meta.costMillis" class="meta-chip">{{ msg.meta.costMillis }}ms</span>
+                <span v-if="msg.meta.costMillis" class="chip">{{ msg.meta.costMillis }}ms</span>
               </div>
-              <div class="message-content">{{ msg.content }}<span v-if="msg.streaming" class="cursor">▍</span></div>
-              <div v-if="msg.transfer" class="transfer-card">
+
+              <div v-if="msg.streaming && !msg.content" class="typing">
+                <span></span><span></span><span></span>
+              </div>
+              <div v-else class="content">{{ msg.content }}<span v-if="msg.streaming" class="cursor">▍</span></div>
+
+              <div v-if="msg.transfer" class="transfer">
                 <div class="transfer-title">已转接人工客服</div>
-                <div class="transfer-line">坐席：{{ msg.transfer.agent }}</div>
-                <div class="transfer-line">转接单号：{{ msg.transfer.transferId }}</div>
-                <div class="transfer-line">原因：{{ msg.transfer.reason }}</div>
+                <div class="transfer-line">坐席 {{ msg.transfer.agent }} · 单号 {{ msg.transfer.transferId }}</div>
+                <div class="transfer-line">{{ msg.transfer.reason }}</div>
               </div>
             </div>
           </div>
-        </div>
-
-        <div v-if="stage" class="stage-hint">
-          <span class="dot"></span>{{ stage }}
-        </div>
-
-        <div class="chat-input-container">
-          <div class="chat-input">
-            <input
-              type="text"
-              v-model="inputMessage"
-              placeholder="请描述您的问题，例如：我要退款，订单 1001"
-              @keyup.enter="sendMessage"
-              :disabled="isStreaming"
-            />
-            <div class="input-actions">
-              <button @click="sendMessage" :disabled="isStreaming" class="send-btn">
-                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
-              </button>
-            </div>
-          </div>
-          <div class="powered-by">AI 客服系统 · 会话管理 / 意图路由 / RAG / Agent / 人工兜底</div>
         </div>
       </div>
-    </div>
+
+      <div class="composer-area">
+        <transition name="fade">
+          <div v-if="stage" class="stage"><span class="stage-dot"></span>{{ stage }}</div>
+        </transition>
+        <div class="composer" :class="{ focused: inputFocused }">
+          <input
+            v-model="inputMessage"
+            :placeholder="theme.placeholder"
+            @keyup.enter="sendMessage"
+            @focus="inputFocused = true"
+            @blur="inputFocused = false"
+            :disabled="isStreaming"
+          />
+          <button class="send" :disabled="isStreaming || !inputMessage.trim()" @click="sendMessage">
+            <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor"
+                 stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M12 19V5M6 11l6-6 6 6"/>
+            </svg>
+          </button>
+        </div>
+        <div class="composer-foot">{{ theme.footer }}</div>
+      </div>
+    </main>
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted, watch, nextTick } from 'vue'
+import { ref, computed, onMounted, watch, nextTick } from 'vue'
 import { apiService } from '../api'
 
-const generateChatId = () => 'cs_' + Math.random().toString(36).slice(2, 11)
+const props = defineProps({
+  mode: { type: String, default: 'RAG' }
+})
+
+const MODES = {
+  RAG: {
+    title: '知识库问答',
+    subtitle: 'RAG · 检索增强',
+    tag: 'RAG',
+    hint: '政策 / 物流 / 发票 / 账号',
+    placeholder: '输入你的问题，例如：退货政策是什么？',
+    footer: '双路召回 · 阈值拒答 · 低置信自动转人工',
+    welcome: '你好，我是知识库助手。售后政策、物流时效、发票流程与账号问题，都可以直接问我，答案均来自官方知识库。',
+    samples: ['退货政策是什么？', '物流一般几天能到？', '怎么开发票？', '账号密码忘了怎么办？']
+  },
+  AGENT: {
+    title: '智能体助手',
+    subtitle: 'Agent · 任务执行',
+    tag: 'Agent',
+    hint: '订单 / 退款 / 采购单',
+    placeholder: '交给我一个任务，例如：我要退款，订单 1001',
+    footer: '状态机约束 · 工具网关鉴权 · 多级降级兜底',
+    welcome: '你好，我是任务执行助手。订单查询、退款办理、采购单进度都可以交给我，需要操作的步骤我会逐一执行并向你确认。',
+    samples: ['我的订单 1001 到哪了？', '我要退款，订单 1001', '采购单 PR-202303 现在走到哪一步了？', '我要转人工']
+  }
+}
+
+const theme = computed(() => MODES[props.mode] || MODES.RAG)
+const themeClass = computed(() => (props.mode === 'AGENT' ? 'agent-theme' : 'rag-theme'))
+
+const generateChatId = () => props.mode.toLowerCase() + '_' + Math.random().toString(36).slice(2, 10)
 
 const chatId = ref(generateChatId())
 const identity = ref('u1')
@@ -115,36 +196,20 @@ const messages = ref([])
 const isStreaming = ref(false)
 const stage = ref('')
 const routeInfo = ref({})
+const inputFocused = ref(false)
 const messagesContainer = ref(null)
 
 const identityOptions = [
-  { value: 'u1', label: '用户 u1（订单 1001/1002）' },
-  { value: 'u2', label: '用户 u2（订单 2001）' },
+  { value: 'u1', label: '用户 u1 · 订单 1001/1002' },
+  { value: 'u2', label: '用户 u2 · 订单 2001' },
   { value: 'admin', label: '管理员 admin' },
-  { value: '', label: '未登录用户' }
-]
-
-const sampleQuestions = [
-  '你好',
-  '退货政策是什么？',
-  '我的订单 1001 到哪了？',
-  '我要退款，订单 1001',
-  '采购单 PR-202303 现在走到哪一步了？',
-  '我要转人工'
+  { value: '', label: '未登录' }
 ]
 
 const routeLabel = (route) => ({ CHAT: '知识库', AGENT: '任务执行', HUMAN: '人工客服' }[route] || route)
+const routeClass = (route) => ({ CHAT: 'route-chat', AGENT: 'route-agent', HUMAN: 'route-human' }[route] || 'route-chat')
 
-const routeClass = (route) => ({
-  CHAT: 'route-chat',
-  AGENT: 'route-agent',
-  HUMAN: 'route-human'
-}[route] || 'route-chat')
-
-const onIdentityChange = () => {
-  // 切换身份后开启新会话，避免上下文串号
-  newChat()
-}
+const onIdentityChange = () => newChat()
 
 const newChat = () => {
   chatId.value = generateChatId()
@@ -157,7 +222,7 @@ const newChat = () => {
 const pushWelcome = () => {
   messages.value.push({
     type: 'ai',
-    content: '您好，我是 AI 智能客服。可以帮您查询订单物流、办理退换货、解答售后政策。请告诉我您的问题～',
+    content: theme.value.welcome,
     meta: null,
     transfer: null,
     streaming: false
@@ -184,7 +249,7 @@ const sendMessage = () => {
   const userId = identity.value || 'anonymous'
   const token = identity.value ? `demo-token-${identity.value}` : ''
 
-  const eventSource = apiService.doChatWithCs(text, chatId.value, userId, token)
+  const eventSource = apiService.doChatWithCs(text, chatId.value, userId, token, props.mode)
 
   eventSource.addEventListener('route', (event) => {
     const data = JSON.parse(event.data)
@@ -227,7 +292,7 @@ const sendMessage = () => {
 
   eventSource.onerror = () => {
     if (isStreaming.value) {
-      messages.value[index].content = messages.value[index].content || '抱歉，连接中断，请稍后重试。'
+      messages.value[index].content = messages.value[index].content || '抱歉，连接中断了，请稍后重试。'
       messages.value[index].streaming = false
       stage.value = ''
       isStreaming.value = false
@@ -246,277 +311,419 @@ const scrollToBottom = () => {
 
 watch(() => messages.value.length, scrollToBottom)
 watch(() => messages.value[messages.value.length - 1]?.content, scrollToBottom)
+watch(() => props.mode, () => newChat())
 
 onMounted(pushWelcome)
 </script>
 
 <style scoped>
-.chat-page {
+.rag-theme { --accent: #6d5be8; --accent-rgb: 109, 91, 232; --bubble-user: #f1edfe; --bubble-border: #ddd4fb; }
+.agent-theme { --accent: #3b82f6; --accent-rgb: 59, 130, 246; --bubble-user: #eaf1fe; --bubble-border: #cfe0fc; }
+
+.chat {
+  position: relative;
   height: 100vh;
   width: 100vw;
   display: flex;
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-  background-color: #121212;
-  color: #e0e0e0;
+  background-color: #fbfbfd;
+  background-image:
+    linear-gradient(rgba(20, 20, 40, 0.024) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(20, 20, 40, 0.024) 1px, transparent 1px);
+  background-size: 48px 48px;
+  color: #14141b;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+  -webkit-font-smoothing: antialiased;
   overflow: hidden;
 }
 
+/* 动态光斑 */
+.bg {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.orb {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(72px);
+  opacity: 0.85;
+  will-change: transform;
+}
+
+.orb-1 {
+  width: 640px;
+  height: 640px;
+  top: -210px;
+  right: -60px;
+  background: radial-gradient(circle, rgba(var(--accent-rgb), 0.42), transparent 68%);
+  animation: drift 22s ease-in-out infinite;
+}
+
+.orb-2 {
+  width: 560px;
+  height: 560px;
+  bottom: -220px;
+  left: 6%;
+  background: radial-gradient(circle, rgba(59, 130, 246, 0.32), transparent 70%);
+  animation: drift 28s ease-in-out infinite reverse;
+}
+
+.orb-3 {
+  width: 460px;
+  height: 460px;
+  top: 32%;
+  left: 38%;
+  background: radial-gradient(circle, rgba(236, 72, 153, 0.18), transparent 70%);
+  animation: drift 34s ease-in-out infinite;
+}
+
+@keyframes drift {
+  0%, 100% { transform: translate3d(0, 0, 0) scale(1); }
+  33% { transform: translate3d(-56px, 44px, 0) scale(1.1); }
+  66% { transform: translate3d(44px, -34px, 0) scale(0.94); }
+}
+
+/* ---------- 侧栏 ---------- */
 .sidebar {
-  width: 260px;
-  background-color: #1a1a1a;
-  border-right: 1px solid #333;
+  position: relative;
+  z-index: 2;
+  width: 250px;
+  flex-shrink: 0;
   display: flex;
   flex-direction: column;
-  padding: 16px;
-  flex-shrink: 0;
+  padding: 18px 14px;
+  background: rgba(250, 250, 252, 0.94);
+  backdrop-filter: blur(14px);
+  border-right: 1px solid #ececf2;
 }
 
-.logo {
-  font-size: 20px;
-  font-weight: bold;
-  margin-bottom: 20px;
-  padding-left: 8px;
-  background: linear-gradient(90deg, #4a61dd, #7c3aed);
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
+.back {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: #8a8a9c;
+  text-decoration: none;
+  padding: 4px 6px;
+  border-radius: 6px;
+  margin-bottom: 22px;
+  transition: color 0.18s ease, background 0.18s ease;
 }
 
-.new-chat-btn {
+.back:hover {
+  color: #14141b;
+  background: rgba(20, 20, 40, 0.04);
+}
+
+.brand {
   display: flex;
   align-items: center;
-  background: linear-gradient(90deg, #4a61dd, #7c3aed);
-  color: white;
-  border: none;
-  border-radius: 6px;
-  padding: 10px 16px;
-  font-size: 14px;
-  cursor: pointer;
+  gap: 10px;
+  padding: 0 6px;
   margin-bottom: 20px;
 }
 
-.btn-icon {
-  margin-right: 8px;
-  font-size: 18px;
-  line-height: 1;
+.icon-box {
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 9px;
+  color: var(--accent);
+  background: rgba(var(--accent-rgb), 0.08);
+  border: 1px solid rgba(var(--accent-rgb), 0.2);
 }
 
-.identity-section {
-  margin-bottom: 18px;
+.brand-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: #14141b;
 }
 
-.identity-select {
+.brand-sub {
+  font-size: 11px;
+  color: #8a8a9c;
+  margin-top: 2px;
+}
+
+.new-chat {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  height: 34px;
+  font-size: 12.5px;
+  color: #3a3a4a;
+  background: #ffffff;
+  border: 1px solid #e6e6ee;
+  border-radius: 8px;
+  cursor: pointer;
+  box-shadow: 0 1px 2px rgba(20, 20, 40, 0.04);
+  transition: border-color 0.18s ease, color 0.18s ease, box-shadow 0.18s ease, transform 0.18s ease;
+  margin-bottom: 22px;
+}
+
+.new-chat:hover {
+  border-color: rgba(var(--accent-rgb), 0.4);
+  color: var(--accent);
+  box-shadow: 0 4px 14px rgba(var(--accent-rgb), 0.12);
+  transform: translateY(-1px);
+}
+
+.section {
+  margin-bottom: 20px;
+}
+
+.section-title {
+  font-size: 11px;
+  color: #9a9aac;
+  padding: 0 6px;
+  margin-bottom: 8px;
+}
+
+.select {
   width: 100%;
-  background-color: #252525;
-  color: #e0e0e0;
-  border: 1px solid #3a3a3a;
-  border-radius: 6px;
-  padding: 8px;
-  font-size: 13px;
+  padding: 8px 10px;
+  font-size: 12px;
+  color: #3a3a4a;
+  background: #ffffff;
+  border: 1px solid #e6e6ee;
+  border-radius: 8px;
   outline: none;
+  cursor: pointer;
+  transition: border-color 0.18s ease, box-shadow 0.18s ease;
 }
 
-.history-section {
+.select:focus {
+  border-color: rgba(var(--accent-rgb), 0.5);
+  box-shadow: 0 0 0 3px rgba(var(--accent-rgb), 0.08);
+}
+
+.samples {
   flex: 1;
   overflow-y: auto;
 }
 
-.section-title {
-  font-size: 12px;
-  color: #888;
-  margin-bottom: 8px;
-  padding-left: 8px;
-}
-
-.chat-history-item {
-  padding: 9px 8px;
-  border-radius: 6px;
+.sample {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  text-align: left;
+  background: transparent;
+  border: none;
+  border-radius: 7px;
+  padding: 8px 6px;
+  font-size: 12.5px;
+  color: #5c5c70;
   cursor: pointer;
-  margin-bottom: 4px;
+  transition: color 0.16s ease, background 0.16s ease;
+}
+
+.sample:hover {
+  color: #14141b;
+  background: rgba(20, 20, 40, 0.04);
+}
+
+.sample-arrow {
+  color: #c4c4d2;
   font-size: 13px;
-  color: #bbb;
-  transition: background-color 0.2s;
+  transition: color 0.16s ease, transform 0.16s ease;
 }
 
-.chat-history-item:hover {
-  background-color: #2b2b2b;
-  color: #e0e0e0;
+.sample:hover .sample-arrow {
+  color: var(--accent);
+  transform: translateX(2px);
 }
 
-.sidebar-footer {
+.side-foot {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 6px 0;
+  border-top: 1px solid #ececf2;
   font-size: 11px;
-  color: #666;
-  line-height: 1.6;
-  border-top: 1px solid #2c2c2c;
-  padding-top: 12px;
+  color: #9a9aac;
 }
 
-.main-content {
+.mode-pill {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--accent);
+  border: 1px solid rgba(var(--accent-rgb), 0.25);
+  background: rgba(var(--accent-rgb), 0.06);
+  padding: 2px 6px;
+  border-radius: 5px;
+}
+
+/* ---------- 主区 ---------- */
+.main {
+  position: relative;
+  z-index: 2;
   flex: 1;
   display: flex;
   flex-direction: column;
-  height: 100%;
-  max-width: 1100px;
-  margin: 0 auto;
-  width: 100%;
+  min-width: 0;
 }
 
 .header {
-  padding: 16px 24px;
-  border-bottom: 1px solid #333;
+  height: 54px;
+  flex-shrink: 0;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  height: 60px;
-  flex-shrink: 0;
+  padding: 0 24px;
+  border-bottom: 1px solid #ececf2;
+  background: rgba(255, 255, 255, 0.6);
+  backdrop-filter: blur(10px);
 }
 
-.page-title {
+.header-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.header h1 {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: #14141b;
   margin: 0;
-  font-size: 16px;
-  font-weight: 500;
 }
 
 .chat-id {
-  font-size: 12px;
-  color: #777;
-  margin-left: 10px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 10.5px;
+  color: #b0b0c0;
 }
 
-.header-tags {
+.header-right {
   display: flex;
   align-items: center;
   gap: 10px;
 }
 
-.route-tag {
-  font-size: 12px;
-  padding: 3px 10px;
-  border-radius: 10px;
-  font-weight: 500;
-}
-
-.route-chat {
-  background-color: rgba(76, 175, 80, 0.15);
-  color: #66bb6a;
-}
-
-.route-agent {
-  background-color: rgba(74, 97, 221, 0.18);
-  color: #7c8ff0;
-}
-
-.route-human {
-  background-color: rgba(255, 152, 0, 0.16);
-  color: #ffa726;
-}
-
 .confidence {
-  font-size: 12px;
-  color: #888;
+  font-size: 11px;
+  color: #8a8a9c;
 }
 
-.chat-container {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
+.route-tag {
+  font-size: 11px;
+  font-weight: 500;
+  padding: 2px 9px;
+  border-radius: 999px;
+  border: 1px solid #e6e6ee;
+  color: #6b6b80;
+  background: #ffffff;
 }
 
-.chat-messages {
+.route-chat { color: #12805c; border-color: rgba(18, 128, 92, 0.2); background: rgba(18, 128, 92, 0.06); }
+.route-agent { color: #2757c9; border-color: rgba(39, 87, 201, 0.2); background: rgba(39, 87, 201, 0.06); }
+.route-human { color: #b45309; border-color: rgba(180, 83, 9, 0.22); background: rgba(245, 158, 11, 0.08); }
+
+/* ---------- 消息 ---------- */
+.messages {
   flex: 1;
   overflow-y: auto;
-  padding: 24px 32px;
+  padding: 26px 24px 12px;
   scroll-behavior: smooth;
-  background-color: #0d0d0d;
 }
 
-.message-wrapper {
+.messages-inner {
+  max-width: 780px;
+  margin: 0 auto;
+}
+
+.row {
   display: flex;
-  margin-bottom: 20px;
   align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 22px;
+  animation: row-in 0.22s ease both;
 }
 
-.user-wrapper {
-  justify-content: flex-end;
+@keyframes row-in {
+  from { opacity: 0; transform: translateY(5px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.row-user {
   flex-direction: row-reverse;
 }
 
-.ai-wrapper {
-  justify-content: flex-start;
-}
-
-.avatar-container {
-  margin: 0 12px;
-}
-
 .avatar {
-  width: 38px;
-  height: 38px;
-  border-radius: 50%;
-  overflow: hidden;
+  width: 28px;
+  height: 28px;
+  flex-shrink: 0;
   display: flex;
   align-items: center;
   justify-content: center;
+  border-radius: 8px;
+  border: 1px solid #e6e6ee;
+  background: #ffffff;
+  color: #8a8a9c;
+  margin-top: 2px;
 }
 
-.avatar img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
+.avatar-ai {
+  color: var(--accent);
+  border-color: rgba(var(--accent-rgb), 0.22);
+  background: rgba(var(--accent-rgb), 0.06);
 }
 
-.user-avatar {
-  background-color: #4a61dd;
-}
-
-.ai-avatar {
-  background-color: #1e1e1e;
-}
-
-.message {
-  border-radius: 12px;
-  max-width: 72%;
+.bubble {
+  max-width: 78%;
+  font-size: 13.5px;
+  line-height: 1.8;
   word-break: break-word;
 }
 
-.ai-message {
-  background-color: #1a1a1a;
-  padding: 14px 18px;
-  border-radius: 16px;
+.bubble-ai {
+  background: #ffffff;
+  border: 1px solid #ececf2;
+  border-radius: 4px 12px 12px 12px;
+  padding: 12px 16px;
+  color: #2e2e3f;
+  box-shadow: 0 1px 2px rgba(20, 20, 40, 0.03), 0 8px 22px rgba(20, 20, 40, 0.04);
 }
 
-.user-message {
-  background-color: #2b5ebd;
-  color: white;
-  padding: 14px 18px;
-  border-radius: 16px;
+.bubble-user {
+  /* 不透明浅色底，避免背景光斑透出影响阅读 */
+  background: var(--bubble-user);
+  border: 1px solid var(--bubble-border);
+  border-radius: 12px 4px 12px 12px;
+  padding: 11px 15px;
+  color: #2a2a3c;
+  box-shadow: 0 1px 2px rgba(20, 20, 40, 0.03);
 }
 
-.message-meta {
+.meta {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
-  margin-bottom: 8px;
+  gap: 6px;
   align-items: center;
+  margin-bottom: 9px;
 }
 
-.meta-chip {
-  font-size: 11px;
-  color: #888;
-  background-color: #252525;
-  padding: 2px 8px;
-  border-radius: 8px;
+.chip {
+  font-size: 10.5px;
+  color: #8a8a9c;
+  border: 1px solid #ececf2;
+  background: #fafafc;
+  padding: 1px 7px;
+  border-radius: 5px;
 }
 
-.message-content {
+.content {
   white-space: pre-line;
-  line-height: 1.6;
-  font-size: 14px;
 }
 
 .cursor {
-  color: #7c8ff0;
+  color: var(--accent);
   animation: blink 1s infinite;
 }
 
@@ -525,103 +732,157 @@ onMounted(pushWelcome)
   51%, 100% { opacity: 0; }
 }
 
-.transfer-card {
+.typing {
+  display: flex;
+  gap: 5px;
+  padding: 4px 0;
+}
+
+.typing span {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: #a8a8ba;
+  animation: typing 1.1s infinite;
+}
+
+.typing span:nth-child(2) { animation-delay: 0.15s; }
+.typing span:nth-child(3) { animation-delay: 0.3s; }
+
+@keyframes typing {
+  0%, 60%, 100% { opacity: 0.25; transform: translateY(0); }
+  30% { opacity: 1; transform: translateY(-3px); }
+}
+
+.transfer {
   margin-top: 12px;
-  border: 1px solid rgba(255, 152, 0, 0.35);
-  background-color: rgba(255, 152, 0, 0.08);
+  padding: 10px 12px;
+  border: 1px solid #fde3c4;
+  background: #fffaf3;
   border-radius: 8px;
-  padding: 10px 14px;
-  font-size: 12px;
-  color: #d8b17a;
+  font-size: 11.5px;
+  color: #a16207;
 }
 
 .transfer-title {
   font-weight: 600;
-  margin-bottom: 6px;
-  color: #ffa726;
+  color: #b45309;
+  margin-bottom: 4px;
 }
 
 .transfer-line {
   line-height: 1.7;
 }
 
-.stage-hint {
-  padding: 6px 40px 0;
-  font-size: 12px;
-  color: #7c8ff0;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background-color: #7c8ff0;
-  animation: pulse 1s infinite;
-}
-
-@keyframes pulse {
-  0%, 100% { opacity: 0.3; }
-  50% { opacity: 1; }
-}
-
-.chat-input-container {
-  padding: 14px 24px 18px;
-  border-top: 1px solid #333;
+/* ---------- 输入区 ---------- */
+.composer-area {
   flex-shrink: 0;
-  background-color: #121212;
+  padding: 6px 24px 18px;
+  /* 底部渐白遮罩：光斑渐隐，输入区始终有干净底色 */
+  background: linear-gradient(to bottom, rgba(251, 251, 253, 0) 0%, rgba(251, 251, 253, 0.9) 38%, #fbfbfd 100%);
 }
 
-.chat-input {
-  display: flex;
-  background-color: #2d2d2d;
-  border-radius: 8px;
-  padding: 10px 16px;
+.composer-area > * {
+  max-width: 780px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.stage {
+  display: inline-flex;
   align-items: center;
+  gap: 7px;
+  font-size: 11.5px;
+  color: #6b6b80;
+  margin-bottom: 10px;
 }
 
-.chat-input input {
+.stage-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--accent);
+  animation: breathe 1.4s infinite;
+}
+
+@keyframes breathe {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.3; }
+}
+
+.composer {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: #ffffff;
+  border: 1px solid #e6e6ee;
+  border-radius: 12px;
+  padding: 8px 8px 8px 16px;
+  box-shadow: 0 2px 6px rgba(20, 20, 40, 0.04), 0 10px 28px rgba(20, 20, 40, 0.05);
+  transition: border-color 0.18s ease, box-shadow 0.18s ease;
+}
+
+.composer.focused {
+  border-color: rgba(var(--accent-rgb), 0.55);
+  box-shadow: 0 0 0 3px rgba(var(--accent-rgb), 0.1), 0 10px 28px rgba(20, 20, 40, 0.06);
+}
+
+.composer input {
   flex: 1;
-  background: none;
+  background: transparent;
   border: none;
-  color: #e0e0e0;
-  font-size: 14px;
   outline: none;
+  color: #14141b;
+  font-size: 13.5px;
+  padding: 8px 0;
 }
 
-.chat-input input::placeholder {
-  color: #666;
+.composer input::placeholder {
+  color: #a8a8ba;
 }
 
-.input-actions {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.send-btn {
-  padding: 8px;
-  border-radius: 6px;
-  background-color: #4a61dd;
+.send {
+  width: 32px;
+  height: 32px;
+  flex-shrink: 0;
   display: flex;
   align-items: center;
   justify-content: center;
   border: none;
-  color: white;
+  border-radius: 8px;
+  background: var(--accent);
+  color: #ffffff;
   cursor: pointer;
+  transition: filter 0.18s ease, transform 0.18s ease;
 }
 
-.send-btn:disabled {
-  opacity: 0.5;
+.send:hover:not(:disabled) {
+  filter: brightness(1.08);
+  transform: translateY(-1px);
+}
+
+.send:disabled {
+  opacity: 0.35;
   cursor: not-allowed;
 }
 
-.powered-by {
-  font-size: 11px;
-  color: #666;
+.composer-foot {
+  margin-top: 10px;
   text-align: center;
-  margin-top: 8px;
+  font-size: 10.5px;
+  color: #b0b0c0;
+}
+
+.fade-enter-active, .fade-leave-active {
+  transition: opacity 0.2s ease;
+}
+
+.fade-enter-from, .fade-leave-to {
+  opacity: 0;
+}
+
+@media (max-width: 820px) {
+  .sidebar { display: none; }
+  .bubble { max-width: 88%; }
 }
 </style>
