@@ -7,6 +7,7 @@ import com.yupi.yuaiagent.cs.model.SessionState;
 import com.yupi.yuaiagent.cs.model.TransferRecord;
 import com.yupi.yuaiagent.cs.support.MetricsCollector;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
@@ -26,24 +27,30 @@ public class HumanTransferService {
     private final SessionManager sessionManager;
     private final MetricsCollector metricsCollector;
     private final CsProperties properties;
+    private final ApplicationEventPublisher eventPublisher;
 
     private final Map<String, TransferRecord> records = new ConcurrentHashMap<>();
     private final AtomicInteger sequence = new AtomicInteger();
 
     public HumanTransferService(AgentDispatcher agentDispatcher, ContextPackager contextPackager,
                                 SessionManager sessionManager, MetricsCollector metricsCollector,
-                                CsProperties properties) {
+                                CsProperties properties, ApplicationEventPublisher eventPublisher) {
         this.agentDispatcher = agentDispatcher;
         this.contextPackager = contextPackager;
         this.sessionManager = sessionManager;
         this.metricsCollector = metricsCollector;
         this.properties = properties;
+        this.eventPublisher = eventPublisher;
+    }
+
+    public TransferRecord transferToHuman(SessionContext context, TransferReason reason) {
+        return transferToHuman(context, reason, 0.0);
     }
 
     /**
-     * 转人工入口：幂等，同一会话未结束的转接单直接复用
+     * 转人工入口：幂等，同一会话未结束的转接单直接复用；成功后发布降级事件通知人工客服
      */
-    public TransferRecord transferToHuman(SessionContext context, TransferReason reason) {
+    public TransferRecord transferToHuman(SessionContext context, TransferReason reason, double sentiment) {
         String existingId = context.getActiveTransferId();
         if (existingId != null) {
             TransferRecord existing = records.get(existingId);
@@ -59,6 +66,10 @@ public class HumanTransferService {
         String agentId = agentDispatcher.assign();
         agentDispatcher.occupy(agentId);
 
+        // 统一构建降级上下文（Chat 与 Agent 同一套结构）
+        EscalationContext escalation = contextPackager.packageContext(
+                context, reason.getDescription(), sentiment, context.getExecutedTools());
+
         TransferRecord record = TransferRecord.builder()
                 .transferId("TR" + System.currentTimeMillis() + sequence.incrementAndGet())
                 .sessionId(context.getSessionId())
@@ -67,7 +78,8 @@ public class HumanTransferService {
                 .category(context.getLastCategory())
                 .assignedAgent(agentId)
                 .status(TransferRecord.Status.PENDING)
-                .contextSnapshot(contextPackager.packageContext(context))
+                .contextSnapshot(escalation.toSnapshot())
+                .escalation(escalation)
                 .createdAt(System.currentTimeMillis())
                 .build();
 
@@ -77,6 +89,8 @@ public class HumanTransferService {
         metricsCollector.increment("human_transfer");
         log.info("[CS] 转人工成功 sessionId={}, transferId={}, agent={}, reason={}",
                 context.getSessionId(), record.getTransferId(), agentId, reason.getDescription());
+        // 事件驱动：立刻通知人工客服，业务代码不关心通知实现
+        eventPublisher.publishEvent(new AgentEscalationEvent(this, escalation));
         return record;
     }
 

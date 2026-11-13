@@ -38,6 +38,9 @@ public class TransferRecord {
     @Builder.Default
     private List<String> contextSnapshot = new ArrayList<>();
 
+    /** 结构化降级上下文（Chat/Agent 统一） */
+    private com.yupi.yuaiagent.cs.human.EscalationContext escalation;
+
     private long createdAt = System.currentTimeMillis();
 
     private long assignedAt;

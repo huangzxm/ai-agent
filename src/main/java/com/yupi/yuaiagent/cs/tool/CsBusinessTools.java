@@ -65,4 +65,15 @@ public class CsBusinessTools {
         String ticketId = repository.createTicket(userId, summary);
         return "工单已创建，工单号 " + ticketId + "，客服将在 1 个工作日内跟进处理";
     }
+
+    @Tool(name = "query_erp_purchase_order", description = "Query enterprise ERP purchase order progress by purchase order number, e.g. PR-202303")
+    public String queryErpPurchaseOrder(@ToolParam(description = "Purchase order number, e.g. PR-202303") String orderId) {
+        return repository.queryErpPurchaseOrder(orderId);
+    }
+
+    @Tool(name = "escalate_to_human",
+            description = "Escalate to a human agent when the task cannot be completed automatically: missing critical info the user refuses to provide, business rules forbid the operation, or the request is beyond your authority")
+    public String escalateToHuman(@ToolParam(description = "Why automatic handling is not possible") String reason) {
+        return "ESCALATE:" + reason;
+    }
 }

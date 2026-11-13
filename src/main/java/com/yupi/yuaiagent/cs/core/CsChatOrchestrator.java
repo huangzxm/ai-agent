@@ -1,7 +1,8 @@
 package com.yupi.yuaiagent.cs.core;
 
 import com.yupi.yuaiagent.cs.agent.AgentRunResult;
-import com.yupi.yuaiagent.cs.agent.RefundFsmAgent;
+import com.yupi.yuaiagent.cs.agent.AgentSkill;
+import com.yupi.yuaiagent.cs.agent.SkillDispatcher;
 import com.yupi.yuaiagent.cs.human.HumanTransferService;
 import com.yupi.yuaiagent.cs.human.TransferReason;
 import com.yupi.yuaiagent.cs.model.CsChatRequest;
@@ -14,6 +15,7 @@ import com.yupi.yuaiagent.cs.model.TransferRecord;
 import com.yupi.yuaiagent.cs.rag.CsRagService;
 import com.yupi.yuaiagent.cs.rag.RagAnswer;
 import com.yupi.yuaiagent.cs.router.IntentRouter;
+import com.yupi.yuaiagent.cs.support.CriticalServiceDownException;
 import com.yupi.yuaiagent.cs.support.FallbackService;
 import com.yupi.yuaiagent.cs.support.MetricsCollector;
 import lombok.extern.slf4j.Slf4j;
@@ -37,20 +39,20 @@ public class CsChatOrchestrator {
     private final ResponseCache responseCache;
     private final IntentRouter intentRouter;
     private final CsRagService ragService;
-    private final RefundFsmAgent fsmAgent;
+    private final SkillDispatcher skillDispatcher;
     private final HumanTransferService humanTransferService;
     private final FallbackService fallbackService;
     private final MetricsCollector metricsCollector;
 
     public CsChatOrchestrator(SessionManager sessionManager, ResponseCache responseCache,
                               IntentRouter intentRouter, CsRagService ragService,
-                              RefundFsmAgent fsmAgent, HumanTransferService humanTransferService,
+                              SkillDispatcher skillDispatcher, HumanTransferService humanTransferService,
                               FallbackService fallbackService, MetricsCollector metricsCollector) {
         this.sessionManager = sessionManager;
         this.responseCache = responseCache;
         this.intentRouter = intentRouter;
         this.ragService = ragService;
-        this.fsmAgent = fsmAgent;
+        this.skillDispatcher = skillDispatcher;
         this.humanTransferService = humanTransferService;
         this.fallbackService = fallbackService;
         this.metricsCollector = metricsCollector;
@@ -117,6 +119,21 @@ public class CsChatOrchestrator {
             sessionManager.appendMessages(session.getSessionId(), List.of(new AssistantMessage(response.getAnswer())));
             listener.onDone(response);
             return response;
+        } catch (CriticalServiceDownException e) {
+            // 关键服务不可用：不重试，立即转人工，避免模型盲答产生幻觉
+            log.error("[CS] 关键服务熔断 sessionId={}, service={}, error={}",
+                    session.getSessionId(), e.getService(), e.getMessage());
+            FallbackService.FallbackOutcome outcome =
+                    fallbackService.fallback(session, e, TransferReason.SYSTEM_ERROR);
+            CsChatResponse response = CsChatResponse.builder()
+                    .chatId(session.getSessionId()).route(RouteType.HUMAN).answer(outcome.answer())
+                    .needHuman(true).transferId(outcome.record().getTransferId())
+                    .transferAgent(outcome.record().getAssignedAgent())
+                    .costMillis(System.currentTimeMillis() - start).build();
+            listener.onTransfer(outcome.record());
+            listener.onError(e);
+            listener.onDone(response);
+            return response;
         } catch (Exception e) {
             log.error("[CS] 处理异常 sessionId={}", session.getSessionId(), e);
             FallbackService.FallbackOutcome outcome =
@@ -152,6 +169,8 @@ public class CsChatOrchestrator {
                     .costMillis(System.currentTimeMillis() - start).build();
         }
         listener.onMessage(ragAnswer.answer());
+        // 全量暂存：只有非个性化问题才写入缓存，命中达阈值后自动晋升为长效缓存
+        responseCache.put(message, ragAnswer.answer());
         return CsChatResponse.builder()
                 .chatId(session.getSessionId()).route(RouteType.CHAT).answer(ragAnswer.answer())
                 .confidence(ragAnswer.confidence()).traces(ragAnswer.sources())
@@ -162,11 +181,16 @@ public class CsChatOrchestrator {
                                        CsEventListener listener, String token, long start) {
         listener.onStage("正在执行任务…");
         List<Message> history = sessionManager.loadTrimmedHistory(session.getSessionId());
-        AgentRunResult result = fsmAgent.run(message, session, decision.getCategory(), token, history);
+        // 技能分发：按路由识别出的 skillId 找到具体 Agent 实现
+        AgentSkill skill = skillDispatcher.dispatch(decision.getSkillId());
+        AgentRunResult result = skill.run(message, session, decision.getCategory(), token, history);
 
         if (result.needHuman()) {
-            TransferReason reason = "LOOP_DETECTED".equals(result.fallbackReason())
-                    ? TransferReason.LOOP_DETECTED : TransferReason.AGENT_FAILURE;
+            TransferReason reason = switch (String.valueOf(result.fallbackReason())) {
+                case "LOOP_DETECTED" -> TransferReason.LOOP_DETECTED;
+                case "AI_ESCALATE" -> TransferReason.AI_DECISION;
+                default -> TransferReason.AGENT_FAILURE;
+            };
             FallbackService.FallbackOutcome outcome = fallbackService.fallback(session, null, reason);
             listener.onTransfer(outcome.record());
             return CsChatResponse.builder()
@@ -187,7 +211,7 @@ public class CsChatOrchestrator {
     private CsChatResponse handleHuman(RouteDecision decision, SessionContext session,
                                        CsEventListener listener, long start) {
         TransferReason reason = resolveReason(decision);
-        TransferRecord record = humanTransferService.transferToHuman(session, reason);
+        TransferRecord record = humanTransferService.transferToHuman(session, reason, decision.getEmotionScore());
         String answer = humanTransferService.queueMessage(record);
         listener.onTransfer(record);
         listener.onMessage(answer);

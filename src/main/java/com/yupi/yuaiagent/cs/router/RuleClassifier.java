@@ -23,14 +23,28 @@ public class RuleClassifier {
     private static final List<String> ANGRY_KEYWORDS = List.of(
             "垃圾", "骗子", "欺诈", "黑心", "滚", "废物", "气死", "太离谱", "什么破", "忍无可忍", "差评");
 
-    /** 明确需要调用业务工具的动作词 */
+    /** 明确需要调用业务工具的动作词 → 业务分类 */
     private static final Map<String, String> AGENT_KEYWORDS = Map.of(
             "退款", "refund",
             "退货", "refund",
             "取消订单", "refund",
             "修改地址", "order",
             "改地址", "order",
-            "开发票", "invoice");
+            "开发票", "invoice",
+            "采购单", "erp",
+            "PR-", "erp");
+
+    /** 业务分类 → Agent 技能ID */
+    private static String skillOf(String category) {
+        if (category == null) {
+            return null;
+        }
+        return switch (category) {
+            case "refund" -> "REFUND_SKILL";
+            case "erp" -> "ERP_SKILL";
+            default -> "ORDER_SKILL";
+        };
+    }
 
     private static final Pattern ORDER_ID_PATTERN = Pattern.compile("(?<![0-9A-Za-z])([A-Za-z]{0,2}\\d{4,})(?![0-9A-Za-z])");
 
@@ -63,10 +77,16 @@ public class RuleClassifier {
         }
 
         // 3. 明确业务动作：走 Agent 工具调用
+        String upperText = text.toUpperCase();
         for (Map.Entry<String, String> entry : AGENT_KEYWORDS.entrySet()) {
-            if (text.contains(entry.getKey())) {
+            // 采购单号前缀不区分大小写
+            boolean matched = "PR-".equals(entry.getKey())
+                    ? upperText.contains("PR-")
+                    : text.contains(entry.getKey());
+            if (matched) {
                 RouteDecision decision = RouteDecision.of(RouteType.AGENT, 0.85, "命中业务动作关键词：" + entry.getKey());
                 decision.setCategory(entry.getValue());
+                decision.setSkillId(skillOf(entry.getValue()));
                 decision.setEmotionScore(emotion);
                 Map<String, Object> params = new HashMap<>();
                 extractOrderId(text).ifPresent(id -> params.put("orderId", id));

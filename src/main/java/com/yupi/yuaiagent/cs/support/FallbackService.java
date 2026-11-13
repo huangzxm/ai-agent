@@ -25,12 +25,15 @@ public class FallbackService {
     }
 
     public enum FailureType {
-        TIMEOUT, RATE_LIMIT, TOOL_ERROR, LLM_ERROR, LOW_CONFIDENCE, UNKNOWN
+        TIMEOUT, RATE_LIMIT, TOOL_ERROR, LLM_ERROR, LOW_CONFIDENCE, SERVICE_DOWN, UNKNOWN
     }
 
     public FailureType classify(Throwable throwable) {
         if (throwable == null) {
             return FailureType.UNKNOWN;
+        }
+        if (throwable instanceof CriticalServiceDownException) {
+            return FailureType.SERVICE_DOWN;
         }
         if (throwable instanceof TimeoutException) {
             return FailureType.TIMEOUT;
@@ -62,6 +65,7 @@ public class FallbackService {
             case TIMEOUT -> "当前咨询人数较多，响应超时。";
             case RATE_LIMIT -> "系统繁忙，正在限流保护。";
             case TOOL_ERROR -> "业务系统暂时不可用。";
+            case SERVICE_DOWN -> "核心业务系统暂时不可用，为避免给您错误信息，已为您转接人工客服核实。";
             default -> "抱歉，这个问题我暂时无法准确处理。";
         };
         return new FallbackOutcome(answer + humanTransferService.queueMessage(record), true, record);

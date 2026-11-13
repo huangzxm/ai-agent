@@ -47,6 +47,12 @@ public class MetricsCollector {
         counters.computeIfAbsent("estimated_tokens", k -> new LongAdder()).add(tokens);
     }
 
+    /** 记录 Observation 瘦身节省的字符数，折算约 token 数 */
+    public void recordObservationSaved(int savedChars) {
+        counters.computeIfAbsent("observation_saved_chars", k -> new LongAdder()).add(savedChars);
+        counters.computeIfAbsent("observation_saved_tokens", k -> new LongAdder()).add(savedChars / 2);
+    }
+
     public Map<String, Object> snapshot() {
         Map<String, Object> result = new ConcurrentHashMap<>();
         Map<String, Long> counterView = new ConcurrentHashMap<>();

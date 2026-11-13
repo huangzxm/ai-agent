@@ -25,8 +25,11 @@ public class RouteDecision {
     /** 决策原因（可解释性） */
     private String reason;
 
-    /** 业务分类：logistics / refund / invoice / account / policy */
+    /** 业务分类：logistics / refund / order / invoice / account / policy / erp */
     private String category;
+
+    /** Agent 技能ID：REFUND_SKILL / ORDER_SKILL / ERP_SKILL，路由阶段一并识别 */
+    private String skillId;
 
     /** 情绪强度 0~1，越高越需要人工安抚 */
     private double emotionScore;
@@ -35,6 +38,11 @@ public class RouteDecision {
     private Map<String, Object> params = new HashMap<>();
 
     public static RouteDecision of(RouteType route, double confidence, String reason) {
-        return new RouteDecision(route, confidence, reason, null, 0.0, new HashMap<>());
+        RouteDecision decision = new RouteDecision();
+        decision.setRoute(route);
+        decision.setConfidence(confidence);
+        decision.setReason(reason);
+        decision.setParams(new HashMap<>());
+        return decision;
     }
 }

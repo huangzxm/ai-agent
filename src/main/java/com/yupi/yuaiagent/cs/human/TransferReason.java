@@ -9,6 +9,7 @@ public enum TransferReason {
     LOW_CONFIDENCE("知识库置信度不足"),
     AGENT_FAILURE("Agent 任务执行失败"),
     LOOP_DETECTED("Agent 检测到死循环"),
+    AI_DECISION("AI 判定需人工介入"),
     SYSTEM_ERROR("系统异常降级");
 
     private final String description;

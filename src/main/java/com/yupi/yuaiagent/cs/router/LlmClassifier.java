@@ -26,7 +26,8 @@ public class LlmClassifier {
             route: CHAT/AGENT/HUMAN 之一
             confidence: 0~1 的置信度
             reason: 中文简述判断依据，不超过30字
-            category: logistics/refund/order/invoice/account/policy 之一，无法判断给 null
+            category: logistics/refund/order/invoice/account/policy/erp 之一，无法判断给 null
+            skillId: 仅当 route=AGENT 时给出技能ID，可选 REFUND_SKILL（退款退货）、ORDER_SKILL（订单/物流/发票）、ERP_SKILL（采购单进度查询），否则给 null
             emotionScore: 0~1 的用户情绪强度
             params: 从用户输入抽取的参数对象，例如 {"orderId":"1001"}，没有就给空对象
 

@@ -20,7 +20,12 @@ public class CsProperties {
 
     @Data
     public static class Cache {
-        private long ttlSeconds = 1800;
+        /** 未命中问题全量暂存的短 TTL */
+        private long ttlSeconds = 300;
+        /** 命中次数达到阈值后晋升为长效缓存 */
+        private long promotedTtlSeconds = 86400;
+        /** 热点晋升阈值 */
+        private int promoteThreshold = 5;
         private int maxSize = 500;
     }
 

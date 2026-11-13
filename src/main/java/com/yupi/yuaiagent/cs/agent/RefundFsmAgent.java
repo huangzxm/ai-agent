@@ -33,7 +33,7 @@ import java.util.Set;
  */
 @Component
 @Slf4j
-public class RefundFsmAgent {
+public class RefundFsmAgent implements AgentSkill {
 
     private static final String SYSTEM_PROMPT = """
             你是电商平台的售后客服 Agent，负责订单查询、物流查询与退款办理。
@@ -43,10 +43,15 @@ public class RefundFsmAgent {
             3. 只有用户明确表示确认后，才允许调用 applyRefund；
             4. 不要重复调用同一工具获取相同信息；
             5. 缺少订单号时直接向用户询问，不要编造订单号或订单信息。
+            6. 如果业务规则不允许自动处理、关键信息用户拒不提供，或任务超出你的能力范围，请调用 escalate_to_human 工具说明原因，不要硬编答案。
             所有回复使用中文，语气专业简洁。
             """;
 
-    private static final Set<String> GENERAL_TOOLS = Set.of("queryOrder", "queryLogistics", "createCrmTicket");
+    private static final Set<String> GENERAL_TOOLS = Set.of(
+            "queryOrder", "queryLogistics", "createCrmTicket", "query_erp_purchase_order");
+
+    /** 任何阶段都允许 AI 主动申请转人工 */
+    private static final String ESCALATE_TOOL = "escalate_to_human";
 
     private final ChatClient chatClient;
     private final ChatOptions chatOptions;
@@ -64,6 +69,11 @@ public class RefundFsmAgent {
         this.chatOptions = DashScopeChatOptions.builder().withProxyToolCalls(true).build();
     }
 
+    @Override
+    public String getSkillId() {
+        return "REFUND_SKILL";
+    }
+
     /**
      * @param message  用户输入
      * @param session  会话（状态机状态跨轮恢复）
@@ -71,6 +81,7 @@ public class RefundFsmAgent {
      * @param token    用户令牌，用于工具鉴权
      * @param history  裁剪后的历史消息
      */
+    @Override
     public AgentRunResult run(String message, SessionContext session, String category,
                               String token, List<Message> history) {
         AgentFsm.State state = AgentFsm.parse(session.getAgentState());
@@ -99,6 +110,7 @@ public class RefundFsmAgent {
         LoopDetector loopDetector = new LoopDetector(properties.getAgent().getRepeatLimit());
         String answer = null;
         String orderId = resolveOrderId(message, session);
+        int consecutiveFailures = 0;
 
         int maxSteps = properties.getAgent().getMaxSteps();
         for (int step = 1; step <= maxSteps; step++) {
@@ -106,6 +118,10 @@ public class RefundFsmAgent {
             if (allowed.isEmpty()) {
                 break;
             }
+            // AI 主动降级通道：任何阶段都可见
+            Set<String> allowedWithEscalate = new java.util.HashSet<>(allowed);
+            allowedWithEscalate.add(ESCALATE_TOOL);
+            allowed = allowedWithEscalate;
             List<ToolCallback> callbacks = toolRegistry.callbacksOf(allowed);
             if (callbacks.isEmpty()) {
                 return AgentRunResult.needHuman("当前业务工具不可用，为您转接人工客服处理。", state, traces, "TOOL_NOT_AVAILABLE");
@@ -150,6 +166,14 @@ public class RefundFsmAgent {
                     traces.add("拦截越权工具调用：" + toolName);
                     continue;
                 }
+                // AI 主动申请转人工（业务规则不允许/用户拒不提供关键信息等）
+                if (ESCALATE_TOOL.equals(toolName)) {
+                    String reason = String.valueOf(arguments.getOrDefault("reason", "AI 判定无法自动处理"));
+                    traces.add("AI 主动转人工：" + reason);
+                    persistState(session, state, orderId);
+                    return AgentRunResult.needHuman("这个情况需要人工客服为您进一步核实，已为您转接。",
+                            state, traces, "AI_ESCALATE");
+                }
                 if (loopDetector.record(toolName, arguments)) {
                     observation.append("检测到重复调用 ").append(toolName).append("，已终止执行\n");
                     persistState(session, state, orderId);
@@ -169,6 +193,14 @@ public class RefundFsmAgent {
                 traces.add(toolName + (result.isSuccess() ? " 成功" : " 失败(" + result.getErrorCode() + ")"));
                 session.getExecutedTools().add(toolName);
 
+                // 工具连续失败：不无限重试，直接转人工（避免加剧下游拥堵）
+                if (result.isSuccess()) {
+                    consecutiveFailures = 0;
+                } else if (++consecutiveFailures >= 2) {
+                    persistState(session, state, orderId);
+                    return AgentRunResult.needHuman("业务系统连续调用失败，为避免给您错误信息，已为您转接人工客服。",
+                            state, traces, "TOOL_CONSECUTIVE_FAILURE");
+                }
                 if (result.isSuccess() && "queryOrder".equals(toolName)) {
                     String oid = String.valueOf(arguments.getOrDefault("orderId", ""));
                     if (!oid.isBlank()) {

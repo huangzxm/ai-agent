@@ -105,4 +105,8 @@ public class ToolRegistry {
     public Map<String, String> sources() {
         return Map.copyOf(toolSources);
     }
+
+    public String sourceOf(String toolName) {
+        return toolSources.getOrDefault(toolName, "unknown");
+    }
 }

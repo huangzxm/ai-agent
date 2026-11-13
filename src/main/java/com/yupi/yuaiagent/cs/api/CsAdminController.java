@@ -3,8 +3,10 @@ package com.yupi.yuaiagent.cs.api;
 import com.yupi.yuaiagent.cs.human.AgentDispatcher;
 import com.yupi.yuaiagent.cs.human.HumanTransferService;
 import com.yupi.yuaiagent.cs.model.TransferRecord;
+import com.yupi.yuaiagent.cs.agent.SkillDispatcher;
 import com.yupi.yuaiagent.cs.security.AuditService;
 import com.yupi.yuaiagent.cs.support.MetricsCollector;
+import com.yupi.yuaiagent.cs.support.ServiceCircuitBreaker;
 import com.yupi.yuaiagent.cs.tool.ToolRegistry;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -28,15 +30,30 @@ public class CsAdminController {
     private final AgentDispatcher agentDispatcher;
     private final AuditService auditService;
     private final ToolRegistry toolRegistry;
+    private final ServiceCircuitBreaker circuitBreaker;
+    private final SkillDispatcher skillDispatcher;
 
     public CsAdminController(MetricsCollector metricsCollector, HumanTransferService humanTransferService,
                              AgentDispatcher agentDispatcher, AuditService auditService,
-                             ToolRegistry toolRegistry) {
+                             ToolRegistry toolRegistry, ServiceCircuitBreaker circuitBreaker,
+                             SkillDispatcher skillDispatcher) {
         this.metricsCollector = metricsCollector;
         this.humanTransferService = humanTransferService;
         this.agentDispatcher = agentDispatcher;
         this.auditService = auditService;
         this.toolRegistry = toolRegistry;
+        this.circuitBreaker = circuitBreaker;
+        this.skillDispatcher = skillDispatcher;
+    }
+
+    @GetMapping("/circuit-breaker")
+    public Map<String, Object> circuitBreaker() {
+        return circuitBreaker.status();
+    }
+
+    @GetMapping("/skills")
+    public Map<String, Object> skills() {
+        return Map.of("skills", skillDispatcher.skillIds());
     }
 
     @GetMapping("/metrics")

@@ -62,8 +62,10 @@ app:
 # AI 客服系统配置
 cs:
   cache:
-    ttl-seconds: 1800   # FAQ 缓存有效期
-    max-size: 500       # LRU 容量
+    ttl-seconds: 300           # 全量暂存的短 TTL（5 分钟）
+    promoted-ttl-seconds: 86400 # 热点晋升后的长效 TTL（24 小时）
+    promote-threshold: 5       # 命中次数达到阈值后晋升
+    max-size: 500              # LRU 容量
   route:
     confidence-threshold: 0.6  # 低于该置信度转人工
     emotion-threshold: 0.7     # 情绪分高于该值转人工
