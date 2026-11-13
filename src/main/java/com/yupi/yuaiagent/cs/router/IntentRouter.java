@@ -46,14 +46,28 @@ public class IntentRouter {
             return llmClassifier.classify(message, summary).orElseGet(llmClassifier::fallback);
         });
 
-        // 3. 阈值兜底：低置信或高情绪 → 人工
+        // 3. 阈值兜底：低置信直接转人工；情绪需「连续多次」才转人工
+        double ruleEmotion = ruleClassifier.detectEmotion(message);
+        double emotionScore = Math.max(ruleEmotion, decision.getEmotionScore());
+        decision.setEmotionScore(emotionScore);
+
         if (decision.getRoute() != RouteType.HUMAN) {
             if (decision.getConfidence() < properties.getRoute().getConfidenceThreshold()) {
                 decision = RouteDecision.of(RouteType.HUMAN, decision.getConfidence(),
                         "置信度不足(" + decision.getConfidence() + ")，转人工兜底");
-            } else if (decision.getEmotionScore() > properties.getRoute().getEmotionThreshold()) {
-                decision.setRoute(RouteType.HUMAN);
-                decision.setReason("情绪强度过高，转人工安抚");
+            } else if (emotionScore >= properties.getRoute().getEmotionThreshold()) {
+                int strikes = session.incrementAnger();
+                int required = properties.getRoute().getAngerStrikes();
+                if (strikes >= required) {
+                    decision.setRoute(RouteType.HUMAN);
+                    decision.setReason("用户连续 " + strikes + " 次情绪激动，转人工安抚");
+                } else {
+                    decision.setReason((decision.getReason() == null ? "" : decision.getReason())
+                            + "（检测到情绪，第 " + strikes + "/" + required + " 次，先安抚并继续处理）");
+                }
+            } else {
+                // 本轮无情绪，逐轮衰减，避免偶发语气词长期累计
+                session.decayAnger();
             }
         }
 

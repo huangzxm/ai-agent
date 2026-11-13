@@ -68,13 +68,9 @@ public class RuleClassifier {
             }
         }
 
-        // 2. 情绪激动：需要人工安抚
+        // 2. 情绪只打分，是否转人工由 IntentRouter 按「连续次数」判定，
+        //    避免用户单次语气重就直接放弃自动处理
         double emotion = detectEmotion(text);
-        if (emotion >= 0.8) {
-            RouteDecision decision = RouteDecision.of(RouteType.HUMAN, 0.9, "检测到用户情绪激动");
-            decision.setEmotionScore(emotion);
-            return Optional.of(decision);
-        }
 
         // 3. 明确业务动作：走 Agent 工具调用
         String upperText = text.toUpperCase();

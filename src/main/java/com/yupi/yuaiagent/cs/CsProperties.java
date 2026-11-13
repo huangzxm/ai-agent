@@ -33,8 +33,10 @@ public class CsProperties {
     public static class Route {
         /** 低于该置信度转人工 */
         private double confidenceThreshold = 0.6;
-        /** 情绪分高于该值转人工 */
+        /** 情绪分高于该值开始计数 */
         private double emotionThreshold = 0.7;
+        /** 连续情绪激动达到该次数才转人工 */
+        private int angerStrikes = 2;
     }
 
     @Data
@@ -50,6 +52,8 @@ public class CsProperties {
         private int maxSteps = 8;
         /** 同一工具+参数重复调用多少次判定为死循环 */
         private int repeatLimit = 2;
+        /** AI 主动申请转人工需连续申请的次数，未达到则先继续澄清 */
+        private int escalateAttempts = 3;
     }
 
     @Data

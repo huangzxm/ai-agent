@@ -37,6 +37,30 @@ public class SessionContext {
     /** Agent 已收集的参数（订单号等） */
     private java.util.Map<String, Object> agentParams = new java.util.HashMap<>();
 
+    /** 连续情绪激动次数，达到阈值才转人工 */
+    private int angerCount;
+
+    /** AI 主动申请转人工次数，需多次申请才真正生效 */
+    private int escalateCount;
+
+    public int incrementAnger() {
+        return ++angerCount;
+    }
+
+    public void decayAnger() {
+        if (angerCount > 0) {
+            angerCount--;
+        }
+    }
+
+    public int incrementEscalate() {
+        return ++escalateCount;
+    }
+
+    public void resetEscalate() {
+        escalateCount = 0;
+    }
+
     private int messageCount;
 
     private long createdAt = System.currentTimeMillis();

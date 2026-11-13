@@ -34,10 +34,18 @@ public final class AgentFsm {
             State.FINISHED, Set.of(),
             State.FAILED, Set.of());
 
-    private static final List<String> CONFIRM_WORDS = List.of(
-            "确认", "确定", "同意", "可以", "好的", "是的", "退吧", "申请退款", "没问题", "行");
+    /** 明确确认：可直接进入执行阶段 */
+    private static final List<String> STRONG_CONFIRM_WORDS = List.of(
+            "确认", "确定", "同意", "是的", "申请退款", "确认退款", "没问题", "退吧", "就这么办");
+
+    /** 模糊确认：先追问一次，避免误操作，也不直接转人工 */
+    private static final List<String> AMBIGUOUS_CONFIRM_WORDS = List.of(
+            "嗯", "哦", "好的", "好", "可以", "行", "成", "对");
 
     private static final List<String> REJECT_WORDS = List.of("取消", "不用了", "算了", "先不", "不要退");
+
+    private static final List<String> NEGATIVE_WORDS = List.of(
+            "不好", "不对", "不行", "不要", "不用", "别", "算了", "取消", "先不");
 
     private AgentFsm() {
     }
@@ -80,7 +88,37 @@ public final class AgentFsm {
     }
 
     public static boolean isConfirm(String message) {
-        return message != null && CONFIRM_WORDS.stream().anyMatch(message::contains);
+        return isStrongConfirm(message);
+    }
+
+    /** 明确确认（含"确认退款"等），可直接执行 */
+    public static boolean isStrongConfirm(String message) {
+        if (message == null || message.isBlank()) {
+            return false;
+        }
+        String text = message.trim();
+        if (NEGATIVE_WORDS.stream().anyMatch(text::contains)) {
+            return false;
+        }
+        return STRONG_CONFIRM_WORDS.stream().anyMatch(text::contains);
+    }
+
+    /**
+     * 模糊确认（"嗯""好的""可以"）：语义上倾向确认，但不足以直接执行退款。
+     * 由 Agent 追问一次明确确认，避免误操作，也不应因此转人工。
+     */
+    public static boolean isAmbiguousConfirm(String message) {
+        if (message == null || message.isBlank()) {
+            return false;
+        }
+        String text = message.trim();
+        if (text.length() > 8 || NEGATIVE_WORDS.stream().anyMatch(text::contains)) {
+            return false;
+        }
+        if (STRONG_CONFIRM_WORDS.stream().anyMatch(text::contains)) {
+            return false;
+        }
+        return AMBIGUOUS_CONFIRM_WORDS.stream().anyMatch(text::contains);
     }
 
     public static boolean isReject(String message) {

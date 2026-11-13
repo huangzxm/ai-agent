@@ -43,7 +43,11 @@ public class RefundFsmAgent implements AgentSkill {
             3. 只有用户明确表示确认后，才允许调用 applyRefund；
             4. 不要重复调用同一工具获取相同信息；
             5. 缺少订单号时直接向用户询问，不要编造订单号或订单信息。
-            6. 如果业务规则不允许自动处理、关键信息用户拒不提供，或任务超出你的能力范围，请调用 escalate_to_human 工具说明原因，不要硬编答案。
+            6. CONFIRM 阶段不会提供 applyRefund 工具，这是正常的：请先向用户复述订单信息并询问「是否确认退款」，
+               用户明确确认后系统会进入执行阶段，不要因为没有退款工具就转人工。
+            7. 只有业务规则明确不允许、关键信息多次追问仍拒不提供，或任务确实超出能力范围时，才调用
+               escalate_to_human；申请会被系统拦截并要求继续澄清，请优先追问而不是转人工。
+            8. 用户回复「嗯」「好的」这类模糊表达时，视为待确认，先追问一次明确确认，不要直接执行或转人工。
             所有回复使用中文，语气专业简洁。
             """;
 
@@ -87,17 +91,27 @@ public class RefundFsmAgent implements AgentSkill {
         AgentFsm.State state = AgentFsm.parse(session.getAgentState());
         boolean refundFlow = "refund".equals(category) || state != AgentFsm.State.START;
         List<String> traces = new ArrayList<>();
+        String orderId = resolveOrderId(message, session);
 
-        // 多轮确认：用户确认则进入执行阶段，拒绝则结束任务
+        // 多轮确认：明确确认才执行；模糊确认先追问；拒绝则取消
         if (refundFlow && (state == AgentFsm.State.VERIFY_ORDER || state == AgentFsm.State.CONFIRM)) {
             if (AgentFsm.isReject(message)) {
                 resetSession(session);
                 return new AgentRunResult("好的，已为您取消本次退款申请，订单保持原状态。还有其他可以帮您的吗？",
                         AgentFsm.State.FINISHED, traces, false, null);
             }
-            if (AgentFsm.isConfirm(message)) {
+            if (AgentFsm.isStrongConfirm(message)) {
                 state = AgentFsm.State.EXECUTE;
-                traces.add("用户确认退款，状态机进入 EXECUTE");
+                traces.add("用户明确确认退款，状态机进入 EXECUTE");
+            } else if (AgentFsm.isAmbiguousConfirm(message)) {
+                // "嗯""好的"这类模糊表达：追问一次，不执行也不转人工
+                persistState(session, AgentFsm.State.CONFIRM, orderId);
+                session.resetEscalate();
+                traces.add("模糊确认，追问用户明确确认");
+                return new AgentRunResult(
+                        "您是希望我为您提交这笔订单的退款吗？为避免误操作，请回复「确认退款」我再为您办理；"
+                                + "如不需要，回复「不用了」即可。",
+                        AgentFsm.State.CONFIRM, traces, false, null);
             }
         }
 
@@ -109,7 +123,6 @@ public class RefundFsmAgent implements AgentSkill {
 
         LoopDetector loopDetector = new LoopDetector(properties.getAgent().getRepeatLimit());
         String answer = null;
-        String orderId = resolveOrderId(message, session);
         int consecutiveFailures = 0;
 
         int maxSteps = properties.getAgent().getMaxSteps();
@@ -166,13 +179,23 @@ public class RefundFsmAgent implements AgentSkill {
                     traces.add("拦截越权工具调用：" + toolName);
                     continue;
                 }
-                // AI 主动申请转人工（业务规则不允许/用户拒不提供关键信息等）
+                // AI 主动申请转人工：不立即生效，需多次申请；未达阈值先拦截并要求继续澄清
                 if (ESCALATE_TOOL.equals(toolName)) {
+                    int attempt = session.incrementEscalate();
+                    int required = properties.getAgent().getEscalateAttempts();
                     String reason = String.valueOf(arguments.getOrDefault("reason", "AI 判定无法自动处理"));
-                    traces.add("AI 主动转人工：" + reason);
-                    persistState(session, state, orderId);
-                    return AgentRunResult.needHuman("这个情况需要人工客服为您进一步核实，已为您转接。",
-                            state, traces, "AI_ESCALATE");
+                    if (attempt >= required) {
+                        session.resetEscalate();
+                        traces.add("AI 第 " + attempt + " 次申请转人工，生效：" + reason);
+                        persistState(session, state, orderId);
+                        return AgentRunResult.needHuman("这个情况需要人工客服为您进一步核实，已为您转接。",
+                                state, traces, "AI_ESCALATE");
+                    }
+                    traces.add("拦截 AI 转人工申请 " + attempt + "/" + required);
+                    observation.append("【系统拦截】当前不满足转人工条件（第 ").append(attempt).append("/")
+                            .append(required).append(" 次申请）。请先向用户澄清或追问确认，例如：")
+                            .append("「您是否确认退款？回复『确认退款』即可办理」，不要重复调用 escalate_to_human。\n");
+                    continue;
                 }
                 if (loopDetector.record(toolName, arguments)) {
                     observation.append("检测到重复调用 ").append(toolName).append("，已终止执行\n");
@@ -226,6 +249,8 @@ public class RefundFsmAgent implements AgentSkill {
                         state, traces, "MAX_STEPS");
             }
         }
+        // 正常推进一轮后重置转人工申请计数，避免跨轮累积
+        session.resetEscalate();
         return new AgentRunResult(answer, state, traces, false, null);
     }
 
@@ -277,5 +302,7 @@ public class RefundFsmAgent implements AgentSkill {
     private void resetSession(SessionContext session) {
         session.setAgentState(null);
         session.getAgentParams().clear();
+        session.resetEscalate();
+        session.setAngerCount(0);
     }
 }

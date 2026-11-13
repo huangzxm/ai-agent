@@ -72,7 +72,9 @@ public class CsBusinessTools {
     }
 
     @Tool(name = "escalate_to_human",
-            description = "Escalate to a human agent when the task cannot be completed automatically: missing critical info the user refuses to provide, business rules forbid the operation, or the request is beyond your authority")
+            description = "Escalate to a human agent. Only call this AFTER at least two clarification attempts have failed: "
+                    + "the user repeatedly refuses to provide critical info, business rules explicitly forbid the operation, "
+                    + "or the request is clearly beyond your authority. Never escalate just because a tool is unavailable in the current stage.")
     public String escalateToHuman(@ToolParam(description = "Why automatic handling is not possible") String reason) {
         return "ESCALATE:" + reason;
     }
