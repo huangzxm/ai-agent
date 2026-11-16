@@ -4,6 +4,7 @@ import com.yupi.yuaiagent.cs.human.AgentDispatcher;
 import com.yupi.yuaiagent.cs.human.HumanTransferService;
 import com.yupi.yuaiagent.cs.model.TransferRecord;
 import com.yupi.yuaiagent.cs.agent.SkillDispatcher;
+import com.yupi.yuaiagent.cs.rag.CsRagService;
 import com.yupi.yuaiagent.cs.security.AuditService;
 import com.yupi.yuaiagent.cs.support.MetricsCollector;
 import com.yupi.yuaiagent.cs.support.ServiceCircuitBreaker;
@@ -32,11 +33,12 @@ public class CsAdminController {
     private final ToolRegistry toolRegistry;
     private final ServiceCircuitBreaker circuitBreaker;
     private final SkillDispatcher skillDispatcher;
+    private final CsRagService ragService;
 
     public CsAdminController(MetricsCollector metricsCollector, HumanTransferService humanTransferService,
                              AgentDispatcher agentDispatcher, AuditService auditService,
                              ToolRegistry toolRegistry, ServiceCircuitBreaker circuitBreaker,
-                             SkillDispatcher skillDispatcher) {
+                             SkillDispatcher skillDispatcher, CsRagService ragService) {
         this.metricsCollector = metricsCollector;
         this.humanTransferService = humanTransferService;
         this.agentDispatcher = agentDispatcher;
@@ -44,11 +46,22 @@ public class CsAdminController {
         this.toolRegistry = toolRegistry;
         this.circuitBreaker = circuitBreaker;
         this.skillDispatcher = skillDispatcher;
+        this.ragService = ragService;
     }
 
     @GetMapping("/circuit-breaker")
     public Map<String, Object> circuitBreaker() {
         return circuitBreaker.status();
+    }
+
+    /**
+     * 检索链路调试：查看查询重写、向量/BM25 召回、RRF 融合、精排各阶段结果
+     */
+    @GetMapping("/retrieval")
+    public CsRagService.RetrievalDebug retrieval(
+            @RequestParam String query,
+            @RequestParam(required = false) String category) {
+        return ragService.debugRetrieval(query, category);
     }
 
     @GetMapping("/skills")

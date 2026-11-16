@@ -4,6 +4,9 @@ import lombok.Data;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.stereotype.Component;
 
+import java.util.LinkedHashMap;
+import java.util.Map;
+
 /**
  * 客服系统可调参数，统一走 cs.* 配置
  */
@@ -17,6 +20,7 @@ public class CsProperties {
     private Rag rag = new Rag();
     private Agent agent = new Agent();
     private Human human = new Human();
+    private Rewrite rewrite = new Rewrite();
 
     @Data
     public static class Cache {
@@ -27,6 +31,10 @@ public class CsProperties {
         /** 热点晋升阈值 */
         private int promoteThreshold = 5;
         private int maxSize = 500;
+        /** 语义缓存命中阈值（余弦相似度） */
+        private double semanticThreshold = 0.88;
+        /** 冷数据回收时长（毫秒），默认 24 小时 */
+        private long coldRetentionMillis = 86400000L;
     }
 
     @Data
@@ -45,6 +53,36 @@ public class CsProperties {
         private int topK = 3;
         /** 取最近多少条历史消息参与上下文 */
         private int historySize = 8;
+        private Hybrid hybrid = new Hybrid();
+        private Rerank rerank = new Rerank();
+    }
+
+    @Data
+    public static class Hybrid {
+        /** RRF 融合权重 */
+        private double vectorWeight = 0.5;
+        private double bm25Weight = 0.5;
+        /** RRF 平滑常数 */
+        private int rrfK = 60;
+        /** 粗排后进入精排的候选数量 */
+        private int candidateTopN = 20;
+    }
+
+    @Data
+    public static class Rerank {
+        /** local：内置轻量精排；dashscope：调用 gte-rerank */
+        private String provider = "local";
+        private String model = "gte-rerank-v2";
+        private int timeoutMillis = 3000;
+    }
+
+    @Data
+    public static class Rewrite {
+        private boolean enabled = true;
+        /** 重写结果缓存上限（命中即复用，语义相对稳定） */
+        private int maxCacheSize = 2000;
+        /** 业务术语标准化映射 */
+        private Map<String, String> synonyms = new LinkedHashMap<>();
     }
 
     @Data

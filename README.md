@@ -29,7 +29,7 @@
 | 会话管理 | 会话生命周期、文件持久化历史、上下文动态裁剪 |
 | FAQ 缓存 | 高频寒暄直接命中；未命中答案暂存 5 分钟，命中 5 次晋升为 24 小时长效缓存 |
 | 混合意图路由 | 关键词/情绪规则 → LLM 结构化分类 → 阈值兜底，输出 CHAT / AGENT / HUMAN 与 skillId |
-| RAG 问答 | 指代消解重写、原始与重写双路召回、相似度阈值 + 业务元数据过滤、低置信拒答 |
+| RAG 问答 | 查询重写（指代消解 + 术语标准化 + 缓存）、向量与 BM25 混合召回、加权 RRF 融合、精排重打分、元数据前置过滤、低置信拒答 |
 | Agent 执行 | FSM 状态机约束 + ReAct 循环 + CoT 动态提示，支持多轮确认与 AI 主动降级 |
 | 工具网关 | 本地工具与 MCP 工具统一注册，执行前强制鉴权、订单归属校验、审计留痕 |
 | Observation 瘦身 | 工具返回的冗长 JSON 在交给模型前按规则裁剪，避免关键事实被日志噪音淹没 |
@@ -73,7 +73,8 @@
 
 - **后端**：Java 21、Spring Boot 3.4.4
 - **AI**：Spring AI 1.0.0-M6、Spring AI Alibaba 1.0.0-M6.1、DashScope（qwen-plus / embedding）
-- **检索**：SimpleVectorStore（内存）+ Markdown 知识库 + 元数据过滤
+- **检索**：SimpleVectorStore（向量）+ 内置 BM25（关键词）+ 加权 RRF 融合 + 精排（本地打分 / DashScope gte-rerank）
+- **知识库**：Markdown 文档，携带 `category`、`doc_type`、`version` 等元数据用于前置过滤
 - **协议**：MCP over SSE（image-search-mcp 模块）
 - **交互**：SseEmitter + CompletableFuture 流式输出
 - **工具库**：Hutool、Kryo、Jsoup、iText、Knife4j
@@ -209,6 +210,7 @@ npm run dev
 | POST | `/api/cs/admin/tools/refresh` | 刷新 MCP 工具（热插拔） |
 | GET | `/api/cs/admin/circuit-breaker` | 熔断器状态 |
 | GET | `/api/cs/admin/skills` | 已注册 Agent 技能 |
+| GET | `/api/cs/admin/retrieval?query=&category=` | 检索链路调试：重写结果、向量/BM25 召回、RRF 融合、精排各阶段明细 |
 
 > 早期接口 `/api/ai/love_app/*`、`/api/ai/manus/chat` 仍保留可用。
 
@@ -266,12 +268,20 @@ START → AUTHENTICATE → COLLECT_PARAMS → VERIFY_ORDER → CONFIRM → EXECU
 - 重复工具调用不直接转人工，而是停止执行并询问是否需要人工
 - AI 主动转人工需连续申请 3 次，前两次被拦截并要求继续澄清
 
-### RAG
+### RAG（混合检索 + 精排）
 
-- 查询重写：结合本轮之前的历史做指代消解，失败回退原问句
-- 双路召回：重写 Query 与原始 Query 各检索一次，按文档去重取最高分
-- 过滤：相似度阈值 0.5 + `category` 元数据；分类无命中时退化为全库
-- 拒答：检索为空给兜底引导（不降级）；有结果但低于阈值转人工
+```
+查询重写 → 元数据前置过滤 → 向量召回 Top20 ┐
+                              BM25 召回 Top20 ┴→ 加权 RRF 融合 → 精排 → Top3 生成
+```
+
+- **查询重写**：结合本轮之前的历史做指代消解、口语润色，并按配置词表做业务术语标准化（如「运费 / 邮费」→「配送费」）；相同「历史 + 原问题」的重写结果走 LRU 缓存，避免重复调用 LLM
+- **前置过滤**：`category`、`doc_type`、`version` 等元数据在检索前筛子集，避免跨分类污染候选集
+- **双路召回**：向量检索负责语义，BM25 负责订单号、专有名词、精确短语；两路各取 Top20
+- **RRF 融合**：按名次而非原始分数加权合并（默认 0.5 / 0.5，k=60），粗排目标是"宁可多召，不漏召"
+- **精排**：`provider=local` 使用内置打分（关键词覆盖率 + 向量原始分），零外部依赖；`provider=dashscope` 调用 `gte-rerank-v2`，失败自动回退本地
+- **拒答**：检索为空给兜底引导（不降级）；精排最高分低于阈值转人工
+- **可观测**：`/api/cs/admin/retrieval` 可查看每个阶段的实际召回与分数
 
 ### 工具网关
 
@@ -318,9 +328,26 @@ cs:
     emotion-threshold: 0.7      # 情绪计分阈值
     anger-strikes: 2            # 连续情绪次数才转人工
   rag:
-    similarity-threshold: 0.5
-    top-k: 3
+    similarity-threshold: 0.5   # 精排置信度阈值
+    top-k: 3                    # 最终送入 LLM 的文档数
     history-size: 8             # 参与上下文的历史条数
+    hybrid:
+      vector-weight: 0.5        # 向量路 RRF 权重
+      bm25-weight: 0.5          # BM25 路 RRF 权重
+      rrf-k: 60                 # RRF 平滑常数
+      candidate-top-n: 20       # 精排候选数
+    rerank:
+      provider: local           # local | dashscope
+      model: gte-rerank-v2
+      timeout-millis: 3000
+  rewrite:
+    enabled: true
+    max-cache-size: 2000        # 重写结果 LRU 缓存
+    synonyms:                   # 业务术语标准化
+      "运费": "配送费"
+      "邮费": "配送费"
+      "退钱": "退款"
+      "单号": "订单号"
   agent:
     max-steps: 8
     repeat-limit: 2             # 重复调用检测
@@ -361,8 +388,8 @@ cs:
 **3. Observation 瘦身，不改下游接口**
 ToB 系统接口往往返回全量字段。网关在返回模型前裁剪大字段、保留最近状态与全部异常条目，避免"缺料停产"被系统日志淹没。不改 ERP 接口、不增加摘要模型。
 
-**4. 双路召回兜住重写跑偏**
-指代消解重写提升多轮检索准确率，但重写可能过度解读。原始 Query 与重写 Query 并行检索、按文档去重取最高分，形成双保险。
+**4. 混合检索 + 精排，既找得全又答得准**
+向量负责语义、BM25 负责订单号与精确短语，加权 RRF 按名次融合，粗排保证召回率；精排再对候选集深度打分，解决"支持退款"与"不支持退款"这类细节差异。查询重写带术语标准化与 LRU 缓存，避免重复调用 LLM。
 
 **5. 缓存冷热分离**
 所有未命中答案先短 TTL 暂存，命中 5 次自动晋升长效，既避免冷启动穿透，也不会让低频问题长期占用内存；含订单号的问题不缓存，防止跨用户串答案。
@@ -430,7 +457,7 @@ location /api/ {
 
 当前实现面向本地演示，以下部分为简化版，生产落地时可逐项替换：
 
-- **向量库**：内存 `SimpleVectorStore`，重启重建；可换 PgVector / 云知识库，并引入 BM25 混合召回与 Reranker
+- **向量库**：内存 `SimpleVectorStore`，重启重建；可换 PgVector / 云知识库（BM25 已内置，精排可切换为 DashScope gte-rerank）
 - **会话存储**：进程内 Map + 本地文件；多实例部署需换 Redis
 - **记忆体系**：目前为最近 N 条窗口裁剪；可扩展 L2 用户画像与 L3 向量长期记忆
 - **业务系统**：订单、CRM、坐席均为内存 Mock；替换 `MockOrderRepository`、`AuthService`、`HumanAgentNotifier` 即可对接真实系统

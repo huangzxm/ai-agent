@@ -66,6 +66,8 @@ cs:
     promoted-ttl-seconds: 86400 # 热点晋升后的长效 TTL（24 小时）
     promote-threshold: 5       # 命中次数达到阈值后晋升
     max-size: 500              # LRU 容量
+    semantic-threshold: 0.88   # 语义缓存命中的余弦相似度阈值
+    cold-retention-millis: 86400000  # 冷缓存回收时长（24h）
   route:
     confidence-threshold: 0.6  # 低于该置信度转人工
     emotion-threshold: 0.7     # 情绪分高于该值开始计数
@@ -74,6 +76,27 @@ cs:
     similarity-threshold: 0.5  # 检索相似度阈值
     top-k: 3                   # Top-K 文档
     history-size: 8            # 参与上下文的历史消息条数
+    hybrid:
+      vector-weight: 0.5       # 向量路 RRF 权重
+      bm25-weight: 0.5         # BM25 路 RRF 权重
+      rrf-k: 60                # RRF 平滑常数
+      candidate-top-n: 20      # 进入精排的候选数
+    rerank:
+      provider: local          # local | dashscope
+      model: gte-rerank-v2
+      timeout-millis: 3000
+  rewrite:
+    enabled: true
+    max-cache-size: 2000
+    synonyms:
+      "运费": "配送费"
+      "邮费": "配送费"
+      "退钱": "退款"
+      "退货款": "退款"
+      "换货": "换货"
+      "开票": "发票"
+      "开发票": "发票"
+      "单号": "订单号"
   agent:
     max-steps: 8               # Agent 最大步数
     repeat-limit: 2            # 同一工具重复调用上限（死循环检测）

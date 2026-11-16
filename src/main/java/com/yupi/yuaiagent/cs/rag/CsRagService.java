@@ -3,7 +3,6 @@ package com.yupi.yuaiagent.cs.rag;
 import com.yupi.yuaiagent.cs.CsProperties;
 import com.yupi.yuaiagent.cs.support.CriticalServiceDownException;
 import com.yupi.yuaiagent.cs.support.ServiceCircuitBreaker;
-import com.yupi.yuaiagent.rag.QueryRewriter;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.messages.Message;
@@ -16,18 +15,17 @@ import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
-import java.util.Comparator;
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.stream.Collectors;
 
 /**
- * 客服 RAG 链路：
- * 1) 带历史的指代消解重写（不改变意图，失败回退原问句）
- * 2) 原始 Query 与重写 Query 双路召回去重合并（简化版混合召回，避免重写跑偏）
- * 3) 相似度阈值 + 业务元数据过滤
- * 4) 置信度不足直接拒答转人工，不让模型基于低质量上下文编造
+ * 客服 RAG 检索链路（混合检索 + 精排）：
+ * 1) 查询重写：指代消解 + 润色 + 术语标准化（带缓存）
+ * 2) 前置过滤：按 category 等业务元数据缩小检索范围
+ * 3) 双路召回：向量（语义） + BM25（关键词）
+ * 4) RRF 粗排融合：按名次加权合并，宁可多召不漏召
+ * 5) 精排：Cross-Encoder 思路重打分，取 Top-K 生成答案
+ * 6) 置信度不足拒答转人工；检索为空给兜底引导不降级
  */
 @Component
 @Slf4j
@@ -46,18 +44,27 @@ public class CsRagService {
             """;
 
     private final VectorStore csVectorStore;
-    private final QueryRewriter queryRewriter;
+    private final QueryRewritePipeline rewritePipeline;
+    private final Bm25Index bm25Index;
+    private final RrfFusion rrfFusion;
+    private final Reranker reranker;
     private final ChatClient chatClient;
     private final CsProperties properties;
     private final ServiceCircuitBreaker circuitBreaker;
 
     public CsRagService(@Qualifier("csVectorStore") VectorStore csVectorStore,
-                        QueryRewriter queryRewriter,
+                        QueryRewritePipeline rewritePipeline,
+                        Bm25Index bm25Index,
+                        RrfFusion rrfFusion,
+                        Reranker reranker,
                         ChatModel dashscopeChatModel,
                         CsProperties properties,
                         ServiceCircuitBreaker circuitBreaker) {
         this.csVectorStore = csVectorStore;
-        this.queryRewriter = queryRewriter;
+        this.rewritePipeline = rewritePipeline;
+        this.bm25Index = bm25Index;
+        this.rrfFusion = rrfFusion;
+        this.reranker = reranker;
         this.chatClient = ChatClient.builder(dashscopeChatModel).build();
         this.properties = properties;
         this.circuitBreaker = circuitBreaker;
@@ -65,39 +72,45 @@ public class CsRagService {
 
     public RagAnswer answer(String question, String category, List<Message> history) {
         String historySummary = summarizeHistory(history);
-        String rewritten = queryRewriter.doContextRewrite(question, historySummary);
+        String rewrittenQuery = rewritePipeline.rewrite(question, historySummary);
 
-        // 双路召回：重写 Query + 原始 Query
-        List<String> queries = rewritten.equals(question) ? List.of(question) : List.of(rewritten, question);
-        double threshold = properties.getRag().getSimilarityThreshold();
-
-        List<Document> documents = searchMerged(queries, category);
-        if (documents.isEmpty() && category != null) {
+        // 1. 前置过滤 + 双路召回 + RRF 融合
+        List<Document> candidates = retrieve(rewrittenQuery, category);
+        if (candidates.isEmpty() && category != null) {
             log.info("[CS] 分类 {} 无命中，退化为全库检索", category);
-            documents = searchMerged(queries, null);
+            candidates = retrieve(rewrittenQuery, null);
         }
 
-        // 检索为空属于正常业务：给兜底引导话术，不直接转人工
-        if (documents.isEmpty()) {
-            log.info("[CS] RAG 未检索到相关文档，返回兜底话术（不降级）");
+        if (candidates.isEmpty()) {
+            log.info("[CS] 未检索到相关文档，返回兜底话术（不降级）");
             return new RagAnswer("很抱歉，我没有找到相关信息。您可以换个说法描述问题，"
                     + "或者回复「转人工」由人工客服帮您处理。", 0.0, List.of(), false);
         }
 
-        // 检索到了但置信度不足：业务上不允许自动回答，转人工
-        double bestScore = documents.stream().mapToDouble(this::scoreOf).max().orElse(0.0);
+        // 2. 精排：对候选集深度打分
+        List<Reranker.RerankedDocument> ranked = reranker.rerank(rewrittenQuery, candidates);
+        if (ranked.isEmpty()) {
+            return RagAnswer.lowConfidence(0.0);
+        }
+        double bestScore = ranked.stream().mapToDouble(Reranker.RerankedDocument::score).max().orElse(0.0);
+        double threshold = properties.getRag().getSimilarityThreshold();
         if (bestScore < threshold) {
-            log.info("[CS] RAG 置信度不足 bestScore={} threshold={}", bestScore, threshold);
+            log.info("[CS] 精排置信度不足 bestScore={} threshold={}", bestScore, threshold);
             return RagAnswer.lowConfidence(bestScore);
         }
 
-        String context = documents.stream()
-                .map(Document::getText)
+        // 3. 取 Top-K 生成答案
+        List<Reranker.RerankedDocument> topDocuments = ranked.stream()
+                .limit(properties.getRag().getTopK())
+                .toList();
+        String context = topDocuments.stream()
+                .map(item -> item.document().getText())
                 .collect(Collectors.joining("\n\n---\n\n"));
-        List<String> sources = documents.stream()
-                .map(d -> String.valueOf(d.getMetadata().getOrDefault("categoryName", "未知")))
+        List<String> sources = topDocuments.stream()
+                .map(item -> String.valueOf(item.document().getMetadata().getOrDefault("categoryName", "未知")))
                 .distinct()
                 .toList();
+
         try {
             String answer = chatClient.prompt()
                     .system(ANSWER_PROMPT)
@@ -107,7 +120,8 @@ public class CsRagService {
                             .param("question", question))
                     .call()
                     .content();
-            log.info("[CS] RAG 命中分类={} bestScore={} 召回路数={}", sources, bestScore, queries.size());
+            log.info("[CS] RAG 检索完成：重写={}, 候选={}, 精排Top={}, 来源={}, 置信度={}",
+                    rewrittenQuery, candidates.size(), topDocuments.size(), sources, bestScore);
             return new RagAnswer(answer == null ? "" : answer.trim(), bestScore, sources, false);
         } catch (Exception e) {
             log.error("[CS] RAG 答案生成失败：{}", e.getMessage());
@@ -116,34 +130,25 @@ public class CsRagService {
     }
 
     /**
-     * 多路召回 + 按文档去重（保留最高分）+ 取 TopK
+     * 双路召回 + RRF 粗排融合
      */
-    private List<Document> searchMerged(List<String> queries, String category) {
-        Map<String, Document> merged = new LinkedHashMap<>();
-        for (String query : queries) {
-            for (Document document : search(query, category)) {
-                String key = document.getId() == null ? document.getText() : document.getId();
-                Document existing = merged.get(key);
-                if (existing == null || scoreOf(document) > scoreOf(existing)) {
-                    merged.put(key, document);
-                }
-            }
-        }
-        return merged.values().stream()
-                .sorted(Comparator.comparingDouble(this::scoreOf).reversed())
-                .limit(properties.getRag().getTopK())
-                .collect(Collectors.toList());
+    private List<Document> retrieve(String query, String category) {
+        int candidateTopN = properties.getRag().getHybrid().getCandidateTopN();
+        List<Document> vectorDocs = vectorSearch(query, category, candidateTopN);
+        List<Document> bm25Docs = bm25Index.search(query, candidateTopN, category);
+        return rrfFusion.fuse(vectorDocs, bm25Docs);
     }
 
-    private List<Document> search(String query, String category) {
+    private List<Document> vectorSearch(String query, String category, int topK) {
         // 向量库属关键基础设施：熔断打开时直接转人工，不让模型盲答
         if (!circuitBreaker.allow(VECTOR_SERVICE)) {
             throw new CriticalServiceDownException(VECTOR_SERVICE, "知识库服务暂时不可用（熔断中）");
         }
         SearchRequest.Builder builder = SearchRequest.builder()
                 .query(query)
-                .topK(properties.getRag().getTopK())
-                .similarityThreshold(properties.getRag().getSimilarityThreshold());
+                .topK(topK)
+                // 粗排阶段不设相似度下限，交给 RRF/精排判断
+                .similarityThreshold(0.0);
         if (category != null && !category.isBlank()) {
             builder.filterExpression(new FilterExpressionBuilder().eq("category", category).build());
         }
@@ -158,15 +163,43 @@ public class CsRagService {
         }
     }
 
-    private String summarizeHistory(List<Message> history) {
-        if (history == null || history.isEmpty()) {
-            return "";
-        }
-        return history.stream()
-                .filter(m -> m.getText() != null && !m.getText().isBlank())
-                .skip(Math.max(0, history.size() - 4))
-                .map(m -> m.getMessageType().name() + "：" + m.getText())
-                .collect(Collectors.joining("\n"));
+    /**
+     * 检索链路调试：展示重写、双路召回、RRF 融合、精排各阶段结果，便于验证与调参
+     */
+    public RetrievalDebug debugRetrieval(String query, String category) {
+        String rewritten = rewritePipeline.rewrite(query, "");
+        int topN = properties.getRag().getHybrid().getCandidateTopN();
+        List<Document> vectorDocs = vectorSearch(rewritten, category, topN);
+        List<Document> bm25Docs = bm25Index.search(rewritten, topN, category);
+        List<Document> fused = rrfFusion.fuse(vectorDocs, bm25Docs);
+        List<Reranker.RerankedDocument> ranked = reranker.rerank(rewritten, fused);
+
+        List<Hit> vectorHits = vectorDocs.stream()
+                .map(d -> new Hit(categoryOf(d), snippetOf(d), scoreOf(d)))
+                .toList();
+        List<Hit> bm25Hits = bm25Docs.stream()
+                .map(d -> new Hit(categoryOf(d), snippetOf(d), 0.0))
+                .toList();
+        List<Hit> fusedHits = fused.stream()
+                .map(d -> new Hit(categoryOf(d), snippetOf(d), scoreOf(d)))
+                .toList();
+        List<Hit> rerankedHits = ranked.stream()
+                .map(r -> new Hit(categoryOf(r.document()), snippetOf(r.document()), r.score()))
+                .toList();
+        double confidence = ranked.stream()
+                .mapToDouble(Reranker.RerankedDocument::score)
+                .max()
+                .orElse(0.0);
+        return new RetrievalDebug(query, rewritten, vectorHits, bm25Hits, fusedHits, rerankedHits, confidence);
+    }
+
+    private String categoryOf(Document document) {
+        return String.valueOf(document.getMetadata().getOrDefault("categoryName", "未知"));
+    }
+
+    private String snippetOf(Document document) {
+        String text = document.getText() == null ? "" : document.getText().replaceAll("\\s+", " ").trim();
+        return text.length() <= 80 ? text : text.substring(0, 80) + "…";
     }
 
     private double scoreOf(Document document) {
@@ -176,5 +209,25 @@ public class CsRagService {
         }
         Object distance = document.getMetadata().get("distance");
         return distance instanceof Number number ? 1 - number.doubleValue() : 0.0;
+    }
+
+    public record Hit(String category, String snippet, double score) {
+    }
+
+    public record RetrievalDebug(String originalQuery, String rewrittenQuery,
+                                 List<Hit> vectorHits, List<Hit> bm25Hits,
+                                 List<Hit> fusedHits, List<Hit> rerankedHits,
+                                 double confidence) {
+    }
+
+    private String summarizeHistory(List<Message> history) {
+        if (history == null || history.isEmpty()) {
+            return "";
+        }
+        return history.stream()
+                .filter(m -> m.getText() != null && !m.getText().isBlank())
+                .skip(Math.max(0, history.size() - 4))
+                .map(m -> m.getMessageType().name() + "：" + m.getText())
+                .collect(Collectors.joining("\n"));
     }
 }

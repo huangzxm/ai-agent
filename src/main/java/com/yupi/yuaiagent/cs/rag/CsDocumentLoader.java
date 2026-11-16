@@ -46,9 +46,14 @@ public class CsDocumentLoader {
                         .withHorizontalRuleCreateDocument(true)
                         .withIncludeCodeBlock(false)
                         .withIncludeBlockquote(false)
+                        // 结构化元数据：检索前用它做前置过滤，避免跨分类/过期文档污染候选集
                         .withAdditionalMetadata("filename", filename)
+                        .withAdditionalMetadata("doc_type", "faq")
+                        .withAdditionalMetadata("product_id", "all")
                         .withAdditionalMetadata("category", category)
                         .withAdditionalMetadata("categoryName", CATEGORY_NAMES.getOrDefault(category, category))
+                        .withAdditionalMetadata("version", "v2026_01")
+                        .withAdditionalMetadata("publish_date", "2026-01-01")
                         .build();
                 MarkdownDocumentReader reader = new MarkdownDocumentReader(resource, config);
                 allDocuments.addAll(reader.get());
