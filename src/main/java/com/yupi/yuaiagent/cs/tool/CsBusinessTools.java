@@ -1,6 +1,7 @@
 package com.yupi.yuaiagent.cs.tool;
 
 import cn.hutool.json.JSONUtil;
+import com.yupi.yuaiagent.cs.persistence.OrderRepository;
 import org.springframework.ai.tool.annotation.Tool;
 import org.springframework.ai.tool.annotation.ToolParam;
 import org.springframework.stereotype.Component;
@@ -14,15 +15,15 @@ import java.util.Map;
 @Component
 public class CsBusinessTools {
 
-    private final MockOrderRepository repository;
+    private final OrderRepository repository;
 
-    public CsBusinessTools(MockOrderRepository repository) {
+    public CsBusinessTools(OrderRepository repository) {
         this.repository = repository;
     }
 
     @Tool(description = "Query order detail by orderId, including product, amount, status and address")
     public String queryOrder(@ToolParam(description = "Order number, e.g. 1001") String orderId) {
-        MockOrderRepository.Order order = repository.findOrder(orderId);
+        OrderRepository.Order order = repository.findOrder(orderId);
         if (order == null) {
             return "未找到订单 " + orderId + "，请确认订单号是否正确";
         }
@@ -44,7 +45,7 @@ public class CsBusinessTools {
     @Tool(description = "Apply refund for an order. Only call this AFTER the user has explicitly confirmed the refund.")
     public String applyRefund(@ToolParam(description = "Order number") String orderId,
                               @ToolParam(description = "Refund reason provided by user") String reason) {
-        MockOrderRepository.Order order = repository.findOrder(orderId);
+        OrderRepository.Order order = repository.findOrder(orderId);
         if (order == null) {
             return "退款失败：订单不存在";
         }

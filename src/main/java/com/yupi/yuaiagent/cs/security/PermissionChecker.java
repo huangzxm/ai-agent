@@ -1,7 +1,7 @@
 package com.yupi.yuaiagent.cs.security;
 
 import com.yupi.yuaiagent.cs.model.UserIdentity;
-import com.yupi.yuaiagent.cs.tool.MockOrderRepository;
+import com.yupi.yuaiagent.cs.persistence.OrderRepository;
 import org.springframework.stereotype.Component;
 
 import java.util.Map;
@@ -20,9 +20,9 @@ public class PermissionChecker {
     private static final Set<String> ORDER_SCOPED_TOOLS = Set.of(
             "queryOrder", "queryLogistics", "applyRefund", "cancelOrder", "modifyAddress");
 
-    private final MockOrderRepository orderRepository;
+    private final OrderRepository orderRepository;
 
-    public PermissionChecker(MockOrderRepository orderRepository) {
+    public PermissionChecker(OrderRepository orderRepository) {
         this.orderRepository = orderRepository;
     }
 
@@ -55,7 +55,7 @@ public class PermissionChecker {
     }
 
     private CheckResult checkOrderState(String toolName, String orderId) {
-        MockOrderRepository.Order order = orderRepository.findOrder(orderId);
+        OrderRepository.Order order = orderRepository.findOrder(orderId);
         if (order == null) {
             return CheckResult.deny("NOT_FOUND", "订单 " + orderId + " 不存在，请确认单号");
         }

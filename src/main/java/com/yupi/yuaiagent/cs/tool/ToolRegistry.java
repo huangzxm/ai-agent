@@ -109,6 +109,45 @@ public class ToolRegistry {
         return names.stream().filter(tools::containsKey).map(tools::get).toList();
     }
 
+    /**
+     * 解析技能声明的工具集合，支持：
+     * - 具体本地工具名（queryOrder）
+     * - mcp:*（全部 MCP 工具）
+     * - mcp:工具名（指定 MCP 工具）
+     */
+    public Set<String> resolveToolNames(Collection<String> patterns) {
+        Set<String> resolved = new java.util.LinkedHashSet<>();
+        if (patterns == null) {
+            return resolved;
+        }
+        for (String pattern : patterns) {
+            if (pattern == null || pattern.isBlank()) {
+                continue;
+            }
+            if ("mcp:*".equals(pattern)) {
+                toolSources.forEach((name, source) -> {
+                    if ("mcp".equals(source)) {
+                        resolved.add(name);
+                    }
+                });
+            } else if (pattern.startsWith("mcp:")) {
+                String name = pattern.substring("mcp:".length());
+                if ("*".equals(name)) {
+                    toolSources.forEach((toolName, source) -> {
+                        if ("mcp".equals(source)) {
+                            resolved.add(toolName);
+                        }
+                    });
+                } else if (tools.containsKey(name)) {
+                    resolved.add(name);
+                }
+            } else if (tools.containsKey(pattern)) {
+                resolved.add(pattern);
+            }
+        }
+        return resolved;
+    }
+
     public Map<String, String> sources() {
         return Map.copyOf(toolSources);
     }

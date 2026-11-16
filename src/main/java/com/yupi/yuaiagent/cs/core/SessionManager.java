@@ -4,6 +4,7 @@ import com.yupi.yuaiagent.chatmemory.FileBasedChatMemory;
 import com.yupi.yuaiagent.cs.CsProperties;
 import com.yupi.yuaiagent.cs.model.SessionContext;
 import com.yupi.yuaiagent.cs.model.SessionState;
+import com.yupi.yuaiagent.cs.persistence.SessionStore;
 import jakarta.annotation.PreDestroy;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.memory.ChatMemory;
@@ -33,6 +34,7 @@ public class SessionManager {
     private final ChatMemory chatMemory;
 
     private final CsProperties properties;
+    private final SessionStore sessionStore;
 
     private final ScheduledExecutorService cleaner = Executors.newSingleThreadScheduledExecutor(r -> {
         Thread t = new Thread(r, "cs-session-cleaner");
@@ -40,8 +42,9 @@ public class SessionManager {
         return t;
     });
 
-    public SessionManager(CsProperties properties) {
+    public SessionManager(CsProperties properties, SessionStore sessionStore) {
         this.properties = properties;
+        this.sessionStore = sessionStore;
         String dir = System.getProperty("user.dir") + "/tmp/cs-chat-memory";
         this.chatMemory = new FileBasedChatMemory(dir);
         cleaner.scheduleWithFixedDelay(this::evictIdleSessions, 30, 30, TimeUnit.MINUTES);
@@ -51,18 +54,33 @@ public class SessionManager {
      * 加载已有会话或创建新会话
      */
     public SessionContext getOrCreate(String sessionId, String userId, String channel) {
-        return sessions.compute(sessionId, (id, existing) -> {
-            if (existing == null) {
-                SessionContext created = new SessionContext();
-                created.setSessionId(id);
-                created.setUserId(userId);
-                created.setChannel(channel);
-                log.info("[CS] 新建会话 sessionId={}, userId={}", id, userId);
-                return created;
-            }
+        SessionContext existing = sessions.get(sessionId);
+        if (existing != null) {
             existing.touch();
             return existing;
-        });
+        }
+        // 内存未命中时尝试从数据库恢复，支持重启/多实例场景
+        SessionContext restored = sessionStore.load(sessionId).orElse(null);
+        if (restored != null) {
+            if (restored.getUserId() == null || "anonymous".equals(restored.getUserId())) {
+                restored.setUserId(userId);
+            }
+            if (restored.getChannel() == null) {
+                restored.setChannel(channel);
+            }
+            restored.touch();
+            sessions.put(sessionId, restored);
+            log.info("[CS] 从数据库恢复会话 sessionId={}", sessionId);
+            return restored;
+        }
+        SessionContext created = new SessionContext();
+        created.setSessionId(sessionId);
+        created.setUserId(userId);
+        created.setChannel(channel);
+        sessions.put(sessionId, created);
+        sessionStore.save(created);
+        log.info("[CS] 新建会话 sessionId={}, userId={}", sessionId, userId);
+        return created;
     }
 
     public SessionContext get(String sessionId) {
@@ -78,6 +96,7 @@ public class SessionManager {
         if (ctx != null) {
             ctx.setMessageCount(ctx.getMessageCount() + messages.size());
             ctx.touch();
+            sessionStore.save(ctx);
         }
     }
 
@@ -105,6 +124,7 @@ public class SessionManager {
         if (ctx != null) {
             ctx.setState(state);
             ctx.touch();
+            sessionStore.save(ctx);
         }
     }
 

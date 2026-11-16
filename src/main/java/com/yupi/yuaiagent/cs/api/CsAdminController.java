@@ -4,11 +4,15 @@ import com.yupi.yuaiagent.cs.human.AgentDispatcher;
 import com.yupi.yuaiagent.cs.human.HumanTransferService;
 import com.yupi.yuaiagent.cs.model.TransferRecord;
 import com.yupi.yuaiagent.cs.agent.SkillDispatcher;
+import com.yupi.yuaiagent.cs.agent.SkillRegistry;
 import com.yupi.yuaiagent.cs.core.SemanticResponseCache;
+import com.yupi.yuaiagent.cs.CsProperties;
+import com.yupi.yuaiagent.cs.persistence.OrderRepositoryRouter;
 import com.yupi.yuaiagent.cs.rag.CsRagService;
 import com.yupi.yuaiagent.cs.security.AuditService;
 import com.yupi.yuaiagent.cs.support.MetricsCollector;
 import com.yupi.yuaiagent.cs.support.ServiceCircuitBreaker;
+import com.yupi.yuaiagent.cs.support.TokenUsageTracker;
 import com.yupi.yuaiagent.cs.tool.McpHealthChecker;
 import com.yupi.yuaiagent.cs.tool.McpServerRegistry;
 import com.yupi.yuaiagent.cs.tool.ToolRegistry;
@@ -40,6 +44,10 @@ public class CsAdminController {
     private final SemanticResponseCache semanticCache;
     private final McpServerRegistry mcpServerRegistry;
     private final McpHealthChecker mcpHealthChecker;
+    private final TokenUsageTracker tokenUsageTracker;
+    private final SkillRegistry skillRegistry;
+    private final CsProperties properties;
+    private final OrderRepositoryRouter orderRepositoryRouter;
 
     public CsAdminController(MetricsCollector metricsCollector, HumanTransferService humanTransferService,
                              AgentDispatcher agentDispatcher, AuditService auditService,
@@ -47,7 +55,11 @@ public class CsAdminController {
                              SkillDispatcher skillDispatcher, CsRagService ragService,
                              SemanticResponseCache semanticCache,
                              McpServerRegistry mcpServerRegistry,
-                             McpHealthChecker mcpHealthChecker) {
+                             McpHealthChecker mcpHealthChecker,
+                             TokenUsageTracker tokenUsageTracker,
+                             SkillRegistry skillRegistry,
+                             CsProperties properties,
+                             OrderRepositoryRouter orderRepositoryRouter) {
         this.metricsCollector = metricsCollector;
         this.humanTransferService = humanTransferService;
         this.agentDispatcher = agentDispatcher;
@@ -59,6 +71,30 @@ public class CsAdminController {
         this.semanticCache = semanticCache;
         this.mcpServerRegistry = mcpServerRegistry;
         this.mcpHealthChecker = mcpHealthChecker;
+        this.tokenUsageTracker = tokenUsageTracker;
+        this.skillRegistry = skillRegistry;
+        this.properties = properties;
+        this.orderRepositoryRouter = orderRepositoryRouter;
+    }
+
+    /** 查看当前数据源模式：未配置/数据库/Mock 降级 */
+    @GetMapping("/persistence")
+    public Map<String, Object> persistence() {
+        CsProperties.Persistence config = properties.getPersistence();
+        boolean configured = config.isEnabled()
+                && config.getUrl() != null && !config.getUrl().isBlank();
+        return Map.of(
+                "enabled", config.isEnabled(),
+                "configured", configured,
+                "dialect", config.getDialect(),
+                "dbActive", orderRepositoryRouter.isDbActive(),
+                "mode", orderRepositoryRouter.isDbActive() ? "database" : "mock");
+    }
+
+    /** 按场景统计真实 Token 用量与估算成本 */
+    @GetMapping("/tokens")
+    public Map<String, Object> tokens() {
+        return tokenUsageTracker.snapshot();
     }
 
     @GetMapping("/circuit-breaker")
@@ -78,7 +114,18 @@ public class CsAdminController {
 
     @GetMapping("/skills")
     public Map<String, Object> skills() {
-        return Map.of("skills", skillDispatcher.skillIds());
+        return Map.of(
+                "ids", skillDispatcher.skillIds(),
+                "definitions", skillRegistry.all());
+    }
+
+    /** 修改 skills/*.yml 后热加载，无需重启 */
+    @PostMapping("/skills/refresh")
+    public Map<String, Object> refreshSkills() {
+        skillRegistry.refresh();
+        return Map.of(
+                "ids", skillRegistry.ids(),
+                "definitions", skillRegistry.all());
     }
 
     @GetMapping("/cache")

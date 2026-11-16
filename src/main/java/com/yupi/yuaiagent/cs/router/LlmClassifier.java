@@ -2,9 +2,12 @@ package com.yupi.yuaiagent.cs.router;
 
 import com.yupi.yuaiagent.cs.model.RouteDecision;
 import com.yupi.yuaiagent.cs.model.RouteType;
+import com.yupi.yuaiagent.cs.support.TokenUsageTracker;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.model.ChatModel;
+import org.springframework.ai.chat.model.ChatResponse;
+import org.springframework.ai.converter.BeanOutputConverter;
 import org.springframework.stereotype.Component;
 
 import java.util.Optional;
@@ -35,20 +38,27 @@ public class LlmClassifier {
             """;
 
     private final ChatClient chatClient;
+    private final TokenUsageTracker tokenUsageTracker;
+    private final BeanOutputConverter<RouteDecision> outputConverter =
+            new BeanOutputConverter<>(RouteDecision.class);
 
-    public LlmClassifier(ChatModel dashscopeChatModel) {
+    public LlmClassifier(ChatModel dashscopeChatModel, TokenUsageTracker tokenUsageTracker) {
         this.chatClient = ChatClient.builder(dashscopeChatModel).build();
+        this.tokenUsageTracker = tokenUsageTracker;
     }
 
     public Optional<RouteDecision> classify(String message, String historySummary) {
         try {
-            RouteDecision decision = chatClient.prompt()
+            ChatResponse response = chatClient.prompt()
                     .system(ROUTER_PROMPT)
                     .user(u -> u.text("历史对话：{history}\n用户输入：{message}")
                             .param("history", historySummary == null || historySummary.isBlank() ? "无" : historySummary)
                             .param("message", message))
                     .call()
-                    .entity(RouteDecision.class);
+                    .chatResponse();
+            tokenUsageTracker.record(TokenUsageTracker.SCENE_ROUTER, response.getMetadata().getUsage());
+            // 手动转换以保留 ChatResponse 中的 usage 信息
+            RouteDecision decision = outputConverter.convert(response.getResult().getOutput().getText());
             if (decision == null || decision.getRoute() == null) {
                 return Optional.empty();
             }

@@ -1,0 +1,14 @@
+id: REFUND_SKILL
+name: 退款办理
+description: 退货退款任务，走专用状态机，需用户明确确认后执行
+category: refund
+fsm: true
+maxSteps: 8
+allowedTools:
+  - queryOrder
+  - queryLogistics
+  - applyRefund
+systemPrompt: |
+  你是电商平台的售后退款专员。
+  严格按照状态机执行：核实订单 → 复述订单并请求确认 → 用户明确确认后才提交退款。
+  用户回复「嗯」「好的」等模糊表达时，先追问一次明确确认，不要直接执行。

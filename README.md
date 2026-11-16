@@ -30,6 +30,9 @@
 | FAQ 缓存 | 高频寒暄精确命中；**语义缓存**支持相似问法命中（余弦相似度 ≥ 0.88），命中 5 次晋升长效 |
 | Prompt 注入防护 | 用户输入与 LLM 工具参数双重检测，覆盖指令覆盖、SQL/命令注入、角色越权 |
 | MCP 服务治理 | 服务注册中心 + 15s 健康巡检，状态变化自动上下线工具，无需重启 |
+| 声明式技能 | `skills/*.yml` 定义提示词与工具白名单，支持 `mcp:*` 绑定 MCP 工具，可热加载 |
+| Token 统计 | 按场景统计真实 prompt / completion / total 用量，支持单价配置估算成本 |
+| 真实数据库 | MySQL / PostgreSQL 持久化订单、用户、会话；读失败自动回退 Mock，写失败转人工 |
 | 混合意图路由 | 关键词/情绪规则 → LLM 结构化分类 → 阈值兜底，输出 CHAT / AGENT / HUMAN 与 skillId |
 | RAG 问答 | 查询重写（指代消解 + 术语标准化 + 缓存）、向量与 BM25 混合召回、加权 RRF 融合、精排重打分、元数据前置过滤、低置信拒答 |
 | Agent 执行 | FSM 状态机约束 + ReAct 循环 + CoT 动态提示，支持多轮确认与 AI 主动降级 |
@@ -169,6 +172,48 @@ npm run dev
 
 > 接口文档：`http://localhost:8123/api/swagger-ui.html`
 
+### 3. 接入真实数据库（可选）
+
+默认 `cs.persistence.enabled=false`，全部使用内存 Mock。开启后订单、用户、会话写入真实数据库。
+
+> 即使把 `enabled` 设为 true 但 `url` 留空，应用也能正常启动并继续使用 Mock，不会启动失败。可通过 `GET /api/cs/admin/persistence` 查看当前实际数据源模式。
+
+**第一步：创建数据库**
+
+```sql
+CREATE DATABASE ai_customer DEFAULT CHARACTER SET utf8mb4;
+-- PostgreSQL: CREATE DATABASE ai_customer;
+```
+
+建表脚本在 `src/main/resources/db/schema.sql`，应用启动时自动执行（`CREATE TABLE IF NOT EXISTS`，MySQL / PostgreSQL 通用）。
+
+**第二步：配置连接**
+
+在 `src/main/resources/application-local.yml`（已 gitignore）中写入：
+
+```yaml
+cs:
+  persistence:
+    enabled: true
+    dialect: mysql          # 或 postgresql
+    url: jdbc:mysql://127.0.0.1:3306/ai_customer?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai
+    username: root
+    password: your-password
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    seed: true              # 首次启动写入演示订单/用户；生产请设为 false
+```
+
+PostgreSQL 示例：`url: jdbc:postgresql://127.0.0.1:5432/ai_customer`，驱动 `org.postgresql.Driver`。
+
+**第三步：验证**
+
+- 启动日志出现 `数据库接入已启用`、`业务表初始化完成`
+- 查真实库：`SELECT * FROM cs_order;`
+- 通过 u1 查订单 1001，数据应来自 `cs_order` 表
+- 停掉数据库后查订单，读操作自动回退 Mock；退款写操作会失败并转人工（不会出现"提示成功但没落库"）
+
+> 真实业务库表结构不同时，修改 `DbOrderRepository` / `DbUserDirectory` 中的 SQL 即可，其余代码不受影响。
+
 ---
 
 ## 接口说明
@@ -211,7 +256,10 @@ npm run dev
 | GET | `/api/cs/admin/tools` | 已注册工具及来源 |
 | POST | `/api/cs/admin/tools/refresh` | 刷新 MCP 工具（热插拔） |
 | GET | `/api/cs/admin/circuit-breaker` | 熔断器状态 |
-| GET | `/api/cs/admin/skills` | 已注册 Agent 技能 |
+| GET | `/api/cs/admin/skills` | 已注册 Agent 技能及定义 |
+| POST | `/api/cs/admin/skills/refresh` | 热加载 `skills/*.yml` |
+| GET | `/api/cs/admin/tokens` | 分场景 Token 用量与估算成本 |
+| GET | `/api/cs/admin/persistence` | 当前数据源模式：未配置 / database / mock |
 | GET | `/api/cs/admin/retrieval?query=&category=` | 检索链路调试：重写结果、向量/BM25 召回、RRF 融合、精排各阶段明细 |
 | GET | `/api/cs/admin/cache` | 语义缓存统计（总量、存活、晋升、阈值） |
 | POST | `/api/cs/admin/cache/invalidate` | 知识库更新后失效全部语义缓存 |
@@ -309,6 +357,13 @@ MCP 工具注册为远程来源，异常或超时直接触发熔断并转人工�
 - **审计**：安全事件与工具调用分别记录，`/audit/denied` 可查越权与注入拦截
 - **身份缓存**：同一 token 的身份信息在有效期内只做内存比对，避免重复鉴权
 
+### 数据持久化与回退
+
+- `OrderRepositoryRouter` / `UserDirectoryRouter`：默认走真实数据库，读异常时回退内存 Mock，30s 后自动探测恢复
+- **写操作不回退**：退款、工单落库失败会抛出异常，由 Agent 转人工，避免"用户看到成功但数据未落库"
+- `SessionStore`：会话上下文 JSON 写入 `cs_session`，重启或换实例后可恢复；数据库不可用时退化为纯内存
+- 用户目录在数据库可用但查不到用户时**不会**回退 Mock，防止真实库中已禁用的账号仍能登录
+
 ### 语义缓存
 
 ```
@@ -325,6 +380,37 @@ Query → Embedding → 向量 KNN（≥0.88）→ 校验 TTL → 命中计数 +
 - `McpServerRegistry`：业务方新 Server 注册后进入服务清单（可对接 Nacos 等注册中心）
 - `McpHealthChecker`：每 15s 探测端口连通性，状态变化联动 `ToolRegistry` 上下线 MCP 工具，主应用无需重启
 - `ToolGateway` 对 MCP 工具调用失败直接熔断并转人工，不在模型侧重试
+
+### 声明式技能与 MCP 绑定
+
+技能是配置而非代码，`src/main/resources/skills/*.yml`：
+
+```yaml
+id: ERP_SKILL
+name: 采购单查询
+category: erp
+fsm: false            # true 时走专用 FSM 实现（退款）
+maxSteps: 6
+allowedTools:         # 支持具体工具、mcp:*、mcp:工具名
+  - query_erp_purchase_order
+  - mcp:*
+systemPrompt: |
+  你是采购单查询助手……
+```
+
+- `SkillLoader` 启动时扫描解析，`SkillRegistry` 合并内置兜底定义（同名 YAML 覆盖）
+- `SkillDispatcher` 按 `skillId` 分发：`fsm: true` 走 `RefundFsmAgent`，其余走 `GenericSkillAgent`
+- `GenericSkillAgent` 按定义动态组装系统提示与工具白名单，越权工具请求代码级拦截，工具统一经 `ToolGateway`
+- `mcp:*` / `mcp:工具名` 把 MCP 工具纳入技能授权，实现「技能 = 提示词 + 工具集」，新增业务只需加一个 yml
+- 改完 yml 调 `POST /api/cs/admin/skills/refresh` 即可生效
+
+### Token 用量统计
+
+- 数据来源为 `ChatResponse.metadata.usage`，不是字符数估算
+- 按场景累计：`router`（意图识别）、`rewrite`（查询重写）、`rag_answer`（答案生成）、`agent`（Agent 推理）
+- `GET /api/cs/admin/tokens` 返回各场景调用次数、prompt/completion/total、平均每次用量
+- 配置 `cs.token.input-price-per-1k`、`output-price-per-1k` 后可估算费用
+- 缓存命中、直接拦截等不调用 LLM 的请求不计入
 
 ### 统一降级
 
@@ -391,6 +477,21 @@ cs:
     agent-count: 3
     queue-limit: 100
     repeat-question-strikes: 3  # 重复提问多少次后询问转人工
+  token:
+    input-price-per-1k: 0       # 元/千 token，填入后估算成本
+    output-price-per-1k: 0
+  skill:
+    enabled: true
+    location: classpath:skills/*.yml
+  persistence:
+    enabled: false            # 开启后订单/用户/会话落库
+    dialect: mysql            # mysql | postgresql
+    url: ""                   # 待填写；留空时仍走 Mock，不影响启动
+    username: ""
+    password: ""
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    seed: false               # 仅空表时写演示数据，生产关闭
+    pool-size: 5
 ```
 
 ---

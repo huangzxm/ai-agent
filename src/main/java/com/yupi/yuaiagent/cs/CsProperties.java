@@ -21,6 +21,9 @@ public class CsProperties {
     private Agent agent = new Agent();
     private Human human = new Human();
     private Rewrite rewrite = new Rewrite();
+    private Token token = new Token();
+    private Skill skill = new Skill();
+    private Persistence persistence = new Persistence();
 
     @Data
     public static class Cache {
@@ -83,6 +86,41 @@ public class CsProperties {
         private int maxCacheSize = 2000;
         /** 业务术语标准化映射 */
         private Map<String, String> synonyms = new LinkedHashMap<>();
+    }
+
+    @Data
+    public static class Token {
+        /** 输入 token 单价（元/千 token），0 表示不估算 */
+        private double inputPricePer1k = 0.0;
+        /** 输出 token 单价（元/千 token） */
+        private double outputPricePer1k = 0.0;
+    }
+
+    @Data
+    public static class Skill {
+        /** 声明式技能配置目录（classpath） */
+        private String location = "classpath:skills/*.yml";
+        /** 是否启用声明式技能 */
+        private boolean enabled = true;
+    }
+
+    /**
+     * 真实数据库接入。enabled=false 时全部走内存 Mock（本地开发默认）。
+     * 开启后订单、用户、会话落库，数据库读失败自动回退 Mock（写操作不静默回退）。
+     */
+    @Data
+    public static class Persistence {
+        private boolean enabled = false;
+        /** mysql | postgresql */
+        private String dialect = "mysql";
+        private String url = "";
+        private String username = "";
+        private String password = "";
+        private String driverClassName = "";
+        /** 是否写入演示数据（仅空表时写入，生产务必关闭） */
+        private boolean seed = false;
+        /** 连接池大小 */
+        private int poolSize = 5;
     }
 
     @Data

@@ -3,10 +3,12 @@ package com.yupi.yuaiagent.cs.rag;
 import com.yupi.yuaiagent.cs.CsProperties;
 import com.yupi.yuaiagent.cs.support.CriticalServiceDownException;
 import com.yupi.yuaiagent.cs.support.ServiceCircuitBreaker;
+import com.yupi.yuaiagent.cs.support.TokenUsageTracker;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.messages.Message;
 import org.springframework.ai.chat.model.ChatModel;
+import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.ai.document.Document;
 import org.springframework.ai.vectorstore.SearchRequest;
 import org.springframework.ai.vectorstore.VectorStore;
@@ -51,6 +53,7 @@ public class CsRagService {
     private final ChatClient chatClient;
     private final CsProperties properties;
     private final ServiceCircuitBreaker circuitBreaker;
+    private final TokenUsageTracker tokenUsageTracker;
 
     public CsRagService(@Qualifier("csVectorStore") VectorStore csVectorStore,
                         QueryRewritePipeline rewritePipeline,
@@ -59,7 +62,8 @@ public class CsRagService {
                         Reranker reranker,
                         ChatModel dashscopeChatModel,
                         CsProperties properties,
-                        ServiceCircuitBreaker circuitBreaker) {
+                        ServiceCircuitBreaker circuitBreaker,
+                        TokenUsageTracker tokenUsageTracker) {
         this.csVectorStore = csVectorStore;
         this.rewritePipeline = rewritePipeline;
         this.bm25Index = bm25Index;
@@ -68,6 +72,7 @@ public class CsRagService {
         this.chatClient = ChatClient.builder(dashscopeChatModel).build();
         this.properties = properties;
         this.circuitBreaker = circuitBreaker;
+        this.tokenUsageTracker = tokenUsageTracker;
     }
 
     public RagAnswer answer(String question, String category, List<Message> history) {
@@ -112,14 +117,16 @@ public class CsRagService {
                 .toList();
 
         try {
-            String answer = chatClient.prompt()
+            ChatResponse response = chatClient.prompt()
                     .system(ANSWER_PROMPT)
                     .user(u -> u.text("对话上下文：\n{history}\n\n参考资料：\n{context}\n\n用户问题：{question}")
                             .param("history", historySummary.isBlank() ? "无" : historySummary)
                             .param("context", context)
                             .param("question", question))
                     .call()
-                    .content();
+                    .chatResponse();
+            tokenUsageTracker.record(TokenUsageTracker.SCENE_RAG, response.getMetadata().getUsage());
+            String answer = response.getResult().getOutput().getText();
             log.info("[CS] RAG 检索完成：重写={}, 候选={}, 精排Top={}, 来源={}, 置信度={}",
                     rewrittenQuery, candidates.size(), topDocuments.size(), sources, bestScore);
             return new RagAnswer(answer == null ? "" : answer.trim(), bestScore, sources, false);

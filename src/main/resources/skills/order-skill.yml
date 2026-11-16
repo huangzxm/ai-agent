@@ -1,0 +1,15 @@
+id: ORDER_SKILL
+name: 订单查询
+description: 订单与物流查询，必要时创建客服工单
+category: order
+fsm: false
+maxSteps: 6
+allowedTools:
+  - queryOrder
+  - queryLogistics
+  - createCrmTicket
+systemPrompt: |
+  你是订单查询助手。
+  只查询订单与物流信息，不修改订单、不办理退款。
+  查询前必须有订单号；没有订单号时先向用户询问。
+  若业务系统异常或订单信息无法核实，说明情况并建议人工核实，不要编造结果。

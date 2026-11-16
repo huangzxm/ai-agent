@@ -7,6 +7,7 @@ import com.yupi.yuaiagent.cs.CsProperties;
 import com.yupi.yuaiagent.cs.model.SessionContext;
 import com.yupi.yuaiagent.cs.model.ToolInvocation;
 import com.yupi.yuaiagent.cs.model.ToolResult;
+import com.yupi.yuaiagent.cs.support.TokenUsageTracker;
 import com.yupi.yuaiagent.cs.tool.ToolGateway;
 import com.yupi.yuaiagent.cs.tool.ToolRegistry;
 import lombok.extern.slf4j.Slf4j;
@@ -62,13 +63,16 @@ public class RefundFsmAgent implements AgentSkill {
     private final ToolRegistry toolRegistry;
     private final ToolGateway toolGateway;
     private final CsProperties properties;
+    private final TokenUsageTracker tokenUsageTracker;
 
     public RefundFsmAgent(ChatModel dashscopeChatModel, ToolRegistry toolRegistry,
-                          ToolGateway toolGateway, CsProperties properties) {
+                          ToolGateway toolGateway, CsProperties properties,
+                          TokenUsageTracker tokenUsageTracker) {
         this.chatClient = ChatClient.builder(dashscopeChatModel).build();
         this.toolRegistry = toolRegistry;
         this.toolGateway = toolGateway;
         this.properties = properties;
+        this.tokenUsageTracker = tokenUsageTracker;
         // 禁用框架自动工具执行，所有调用必须走 ToolGateway
         this.chatOptions = DashScopeChatOptions.builder().withProxyToolCalls(true).build();
     }
@@ -156,6 +160,7 @@ public class RefundFsmAgent implements AgentSkill {
                 return AgentRunResult.needHuman("系统繁忙，已为您转接人工客服。", state, traces, "LLM_ERROR");
             }
 
+            tokenUsageTracker.record(TokenUsageTracker.SCENE_AGENT, response.getMetadata().getUsage());
             AssistantMessage output = response.getResult().getOutput();
             List<AssistantMessage.ToolCall> toolCalls = output.getToolCalls();
             if (toolCalls == null || toolCalls.isEmpty()) {

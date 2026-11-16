@@ -2,9 +2,11 @@ package com.yupi.yuaiagent.cs.rag;
 
 import cn.hutool.crypto.digest.DigestUtil;
 import com.yupi.yuaiagent.cs.CsProperties;
+import com.yupi.yuaiagent.cs.support.TokenUsageTracker;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.model.ChatModel;
+import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.stereotype.Component;
 
 import java.util.LinkedHashMap;
@@ -30,13 +32,16 @@ public class QueryRewritePipeline {
 
     private final ChatClient chatClient;
     private final CsProperties properties;
+    private final TokenUsageTracker tokenUsageTracker;
 
     /** LRU 缓存：key = 历史摘要 + 原问题 */
     private final Map<String, String> cache;
 
-    public QueryRewritePipeline(ChatModel dashscopeChatModel, CsProperties properties) {
+    public QueryRewritePipeline(ChatModel dashscopeChatModel, CsProperties properties,
+                                TokenUsageTracker tokenUsageTracker) {
         this.chatClient = ChatClient.builder(dashscopeChatModel).build();
         this.properties = properties;
+        this.tokenUsageTracker = tokenUsageTracker;
         int maxSize = properties.getRewrite().getMaxCacheSize();
         this.cache = new LinkedHashMap<>(maxSize, 0.75f, true) {
             @Override
@@ -79,13 +84,15 @@ public class QueryRewritePipeline {
 
     private String llmRewrite(String query, String historySummary) {
         try {
-            String result = chatClient.prompt()
+            ChatResponse response = chatClient.prompt()
                     .system(REWRITE_PROMPT)
                     .user(u -> u.text("对话历史：\n{history}\n\n当前问题：{query}")
                             .param("history", historySummary)
                             .param("query", query))
                     .call()
-                    .content();
+                    .chatResponse();
+            tokenUsageTracker.record(TokenUsageTracker.SCENE_REWRITE, response.getMetadata().getUsage());
+            String result = response.getResult().getOutput().getText();
             if (result == null || result.isBlank() || result.length() > query.length() * 4 + 20) {
                 return query;
             }

@@ -2,6 +2,7 @@ package com.yupi.yuaiagent.cs.tool;
 
 import cn.hutool.json.JSONArray;
 import cn.hutool.json.JSONObject;
+import com.yupi.yuaiagent.cs.persistence.OrderRepository;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
@@ -9,14 +10,11 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * 内存 Mock 订单/物流/工单数据，模拟 CRM 与订单中心
+ * 内存 Mock 订单/物流/工单数据，模拟 CRM 与订单中心。
+ * 数据库不可用时作为读降级回退。
  */
 @Component
-public class MockOrderRepository {
-
-    public record Order(String orderId, String userId, String product, double amount,
-                        String status, String payTime, String address) {
-    }
+public class MockOrderRepository implements OrderRepository {
 
     private final Map<String, Order> orders = new ConcurrentHashMap<>();
     private final Map<String, List<String>> logistics = new ConcurrentHashMap<>();

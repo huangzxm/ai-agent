@@ -97,6 +97,22 @@ cs:
       "开票": "发票"
       "开发票": "发票"
       "单号": "订单号"
+  token:
+    input-price-per-1k: 0    # 元/千 token，按实际供应商单价填写后可估算成本
+    output-price-per-1k: 0
+  skill:
+    enabled: true
+    location: classpath:skills/*.yml
+  # 真实数据库接入：enabled=false 或 url 留空时全部使用内存 Mock
+  persistence:
+    enabled: false
+    dialect: mysql                       # mysql | postgresql
+    url: ""                              # 待填写，例如 jdbc:mysql://127.0.0.1:3306/ai_customer
+    username: ""
+    password: ""                        # 真实密码请写入 application-local.yml（不提交）
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    seed: false                         # 是否写入演示数据（仅空表时，生产关闭）
+    pool-size: 5
   agent:
     max-steps: 8               # Agent 最大步数
     repeat-limit: 2            # 同一工具重复调用上限（死循环检测）
