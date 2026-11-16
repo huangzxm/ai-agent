@@ -7,6 +7,7 @@ import com.yupi.yuaiagent.cs.model.UserIdentity;
 import com.yupi.yuaiagent.cs.security.AuditService;
 import com.yupi.yuaiagent.cs.security.AuthService;
 import com.yupi.yuaiagent.cs.security.PermissionChecker;
+import com.yupi.yuaiagent.cs.security.PromptInjectionGuard;
 import com.yupi.yuaiagent.cs.support.CriticalServiceDownException;
 import com.yupi.yuaiagent.cs.support.MetricsCollector;
 import com.yupi.yuaiagent.cs.support.ServiceCircuitBreaker;
@@ -29,12 +30,14 @@ public class ToolGateway {
     private final MetricsCollector metricsCollector;
     private final ObservationSanitizer observationSanitizer;
     private final ServiceCircuitBreaker circuitBreaker;
+    private final PromptInjectionGuard promptInjectionGuard;
 
     public ToolGateway(ToolRegistry toolRegistry, AuthService authService,
                        PermissionChecker permissionChecker, AuditService auditService,
                        MetricsCollector metricsCollector,
                        ObservationSanitizer observationSanitizer,
-                       ServiceCircuitBreaker circuitBreaker) {
+                       ServiceCircuitBreaker circuitBreaker,
+                       PromptInjectionGuard promptInjectionGuard) {
         this.toolRegistry = toolRegistry;
         this.authService = authService;
         this.permissionChecker = permissionChecker;
@@ -42,6 +45,7 @@ public class ToolGateway {
         this.metricsCollector = metricsCollector;
         this.observationSanitizer = observationSanitizer;
         this.circuitBreaker = circuitBreaker;
+        this.promptInjectionGuard = promptInjectionGuard;
     }
 
     public ToolResult execute(ToolInvocation invocation) {
@@ -55,6 +59,17 @@ public class ToolGateway {
             metricsCollector.recordTool(false);
             auditService.record(invocation.getSessionId(), userId, toolName, invocation.getArguments(), false, "NOT_FOUND");
             return ToolResult.fail(toolName, "NOT_FOUND", "工具不存在或已下线：" + toolName, cost(start));
+        }
+
+        // 不信任 LLM 输出的参数：执行前做注入检测
+        java.util.Optional<PromptInjectionGuard.Rule> injection =
+                promptInjectionGuard.detectInArguments(invocation.getArguments());
+        if (injection.isPresent()) {
+            metricsCollector.recordTool(false);
+            auditService.recordSecurity(invocation.getSessionId(), userId,
+                    injection.get().code(), "tool=" + toolName + " args=" + invocation.getArguments(), true);
+            return ToolResult.fail(toolName, "PROMPT_INJECTION",
+                    "参数包含不支持的指令，已拒绝执行", cost(start));
         }
 
         PermissionChecker.CheckResult check = permissionChecker.check(identity, toolName, invocation.getArguments());

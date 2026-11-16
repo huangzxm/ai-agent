@@ -4,10 +4,13 @@ import com.yupi.yuaiagent.cs.human.AgentDispatcher;
 import com.yupi.yuaiagent.cs.human.HumanTransferService;
 import com.yupi.yuaiagent.cs.model.TransferRecord;
 import com.yupi.yuaiagent.cs.agent.SkillDispatcher;
+import com.yupi.yuaiagent.cs.core.SemanticResponseCache;
 import com.yupi.yuaiagent.cs.rag.CsRagService;
 import com.yupi.yuaiagent.cs.security.AuditService;
 import com.yupi.yuaiagent.cs.support.MetricsCollector;
 import com.yupi.yuaiagent.cs.support.ServiceCircuitBreaker;
+import com.yupi.yuaiagent.cs.tool.McpHealthChecker;
+import com.yupi.yuaiagent.cs.tool.McpServerRegistry;
 import com.yupi.yuaiagent.cs.tool.ToolRegistry;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -34,11 +37,17 @@ public class CsAdminController {
     private final ServiceCircuitBreaker circuitBreaker;
     private final SkillDispatcher skillDispatcher;
     private final CsRagService ragService;
+    private final SemanticResponseCache semanticCache;
+    private final McpServerRegistry mcpServerRegistry;
+    private final McpHealthChecker mcpHealthChecker;
 
     public CsAdminController(MetricsCollector metricsCollector, HumanTransferService humanTransferService,
                              AgentDispatcher agentDispatcher, AuditService auditService,
                              ToolRegistry toolRegistry, ServiceCircuitBreaker circuitBreaker,
-                             SkillDispatcher skillDispatcher, CsRagService ragService) {
+                             SkillDispatcher skillDispatcher, CsRagService ragService,
+                             SemanticResponseCache semanticCache,
+                             McpServerRegistry mcpServerRegistry,
+                             McpHealthChecker mcpHealthChecker) {
         this.metricsCollector = metricsCollector;
         this.humanTransferService = humanTransferService;
         this.agentDispatcher = agentDispatcher;
@@ -47,6 +56,9 @@ public class CsAdminController {
         this.circuitBreaker = circuitBreaker;
         this.skillDispatcher = skillDispatcher;
         this.ragService = ragService;
+        this.semanticCache = semanticCache;
+        this.mcpServerRegistry = mcpServerRegistry;
+        this.mcpHealthChecker = mcpHealthChecker;
     }
 
     @GetMapping("/circuit-breaker")
@@ -67,6 +79,52 @@ public class CsAdminController {
     @GetMapping("/skills")
     public Map<String, Object> skills() {
         return Map.of("skills", skillDispatcher.skillIds());
+    }
+
+    @GetMapping("/cache")
+    public Map<String, Object> cache() {
+        return semanticCache.stats();
+    }
+
+    /** 知识库更新后主动失效语义缓存 */
+    @PostMapping("/cache/invalidate")
+    public Map<String, Object> invalidateCache() {
+        semanticCache.invalidateAll();
+        return Map.of("invalidated", true);
+    }
+
+    /** 回收过期冷缓存 */
+    @PostMapping("/cache/evict-cold")
+    public Map<String, Object> evictColdCache() {
+        return Map.of("evicted", semanticCache.evictCold());
+    }
+
+    @GetMapping("/mcp/servers")
+    public java.util.List<McpServerRegistry.ServerInfo> mcpServers() {
+        return mcpServerRegistry.list();
+    }
+
+    @PostMapping("/mcp/register")
+    public java.util.List<McpServerRegistry.ServerInfo> registerMcpServer(
+            @RequestParam String serverId,
+            @RequestParam String baseUrl,
+            @RequestParam(defaultValue = "业务 MCP 服务") String description) {
+        mcpServerRegistry.register(serverId, baseUrl, description);
+        mcpHealthChecker.refreshNow();
+        return mcpServerRegistry.list();
+    }
+
+    @PostMapping("/mcp/unregister")
+    public java.util.List<McpServerRegistry.ServerInfo> unregisterMcpServer(@RequestParam String serverId) {
+        mcpServerRegistry.unregister(serverId);
+        mcpHealthChecker.refreshNow();
+        return mcpServerRegistry.list();
+    }
+
+    @PostMapping("/mcp/refresh")
+    public java.util.List<McpServerRegistry.ServerInfo> refreshMcp() {
+        mcpHealthChecker.refreshNow();
+        return mcpServerRegistry.list();
     }
 
     @GetMapping("/metrics")

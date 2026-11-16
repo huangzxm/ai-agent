@@ -16,6 +16,8 @@ import com.yupi.yuaiagent.cs.model.TransferRecord;
 import com.yupi.yuaiagent.cs.rag.CsRagService;
 import com.yupi.yuaiagent.cs.rag.RagAnswer;
 import com.yupi.yuaiagent.cs.router.IntentRouter;
+import com.yupi.yuaiagent.cs.security.AuditService;
+import com.yupi.yuaiagent.cs.security.PromptInjectionGuard;
 import com.yupi.yuaiagent.cs.support.CriticalServiceDownException;
 import com.yupi.yuaiagent.cs.support.FallbackService;
 import com.yupi.yuaiagent.cs.support.MetricsCollector;
@@ -38,6 +40,7 @@ public class CsChatOrchestrator {
 
     private final SessionManager sessionManager;
     private final ResponseCache responseCache;
+    private final SemanticResponseCache semanticResponseCache;
     private final IntentRouter intentRouter;
     private final CsRagService ragService;
     private final SkillDispatcher skillDispatcher;
@@ -45,14 +48,19 @@ public class CsChatOrchestrator {
     private final FallbackService fallbackService;
     private final MetricsCollector metricsCollector;
     private final CsProperties properties;
+    private final PromptInjectionGuard promptInjectionGuard;
+    private final AuditService auditService;
 
     public CsChatOrchestrator(SessionManager sessionManager, ResponseCache responseCache,
+                              SemanticResponseCache semanticResponseCache,
                               IntentRouter intentRouter, CsRagService ragService,
                               SkillDispatcher skillDispatcher, HumanTransferService humanTransferService,
                               FallbackService fallbackService, MetricsCollector metricsCollector,
-                              CsProperties properties) {
+                              CsProperties properties, PromptInjectionGuard promptInjectionGuard,
+                              AuditService auditService) {
         this.sessionManager = sessionManager;
         this.responseCache = responseCache;
+        this.semanticResponseCache = semanticResponseCache;
         this.intentRouter = intentRouter;
         this.ragService = ragService;
         this.skillDispatcher = skillDispatcher;
@@ -60,6 +68,8 @@ public class CsChatOrchestrator {
         this.fallbackService = fallbackService;
         this.metricsCollector = metricsCollector;
         this.properties = properties;
+        this.promptInjectionGuard = promptInjectionGuard;
+        this.auditService = auditService;
     }
 
     public CsChatResponse chat(CsChatRequest request, CsEventListener listener) {
@@ -85,15 +95,39 @@ public class CsChatOrchestrator {
         sessionManager.appendMessages(session.getSessionId(), List.of(new UserMessage(message)));
 
         try {
-            // 1. FAQ 缓存短路
+            // 0. Prompt 注入与危险指令防护：不信任用户输入，命中即拒绝且不转人工（避免被刷人工通道）
+            Optional<PromptInjectionGuard.Rule> injection = promptInjectionGuard.detect(message);
+            if (injection.isPresent()) {
+                auditService.recordSecurity(session.getSessionId(), session.getUserId(),
+                        injection.get().code(), message, true);
+                metricsCollector.increment("prompt_injection_blocked");
+                String answer = "抱歉，您的消息包含不支持的指令，我无法执行。请描述具体业务问题，例如订单、退款或物流。";
+                sessionManager.appendMessages(session.getSessionId(), List.of(new AssistantMessage(answer)));
+                CsChatResponse response = CsChatResponse.builder()
+                        .chatId(session.getSessionId()).route(RouteType.CHAT).answer(answer)
+                        .traces(new ArrayList<>(List.of("安全策略拦截：" + injection.get().code())))
+                        .costMillis(System.currentTimeMillis() - start).build();
+                listener.onMessage(answer);
+                listener.onDone(response);
+                return response;
+            }
+
+            // 1. 缓存短路：先精确命中 FAQ，再走向量语义缓存（相似问法也能命中）
             Optional<String> cached = responseCache.get(message);
+            boolean semanticHit = false;
+            if (cached.isEmpty()) {
+                cached = semanticResponseCache.get(message);
+                semanticHit = cached.isPresent();
+            }
             if (cached.isPresent()) {
                 metricsCollector.recordRoute(RouteType.CHAT.name());
                 metricsCollector.increment("cache_hit");
+                boolean fromSemantic = semanticHit;
                 sessionManager.appendMessages(session.getSessionId(), List.of(new AssistantMessage(cached.get())));
                 CsChatResponse response = CsChatResponse.builder()
                         .chatId(session.getSessionId()).route(RouteType.CHAT).answer(cached.get())
                         .confidence(1.0).cacheHit(true)
+                        .traces(new ArrayList<>(List.of(fromSemantic ? "语义缓存命中" : "FAQ 精确命中")))
                         .costMillis(System.currentTimeMillis() - start).build();
                 listener.onMessage(cached.get());
                 listener.onDone(response);
@@ -182,8 +216,9 @@ public class CsChatOrchestrator {
                     .costMillis(System.currentTimeMillis() - start).build();
         }
         listener.onMessage(ragAnswer.answer());
-        // 全量暂存：只有非个性化问题才写入缓存，命中达阈值后自动晋升为长效缓存
+        // 全量暂存：精确缓存 + 语义缓存双写；命中达阈值后自动晋升为长效缓存
         responseCache.put(message, ragAnswer.answer());
+        semanticResponseCache.put(message, ragAnswer.answer(), decision.getCategory());
         return CsChatResponse.builder()
                 .chatId(session.getSessionId()).route(RouteType.CHAT).answer(ragAnswer.answer())
                 .confidence(ragAnswer.confidence()).traces(ragAnswer.sources())

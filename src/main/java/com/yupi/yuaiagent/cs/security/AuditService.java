@@ -37,6 +37,16 @@ public class AuditService {
         }
     }
 
+    /**
+     * 记录安全事件（Prompt 注入、越权尝试等）
+     */
+    public void recordSecurity(String sessionId, String userId, String rule, String detail, boolean blocked) {
+        String toolName = "security_guard:" + rule;
+        record(sessionId, userId, toolName, Map.of("detail", detail == null ? "" : detail), !blocked, blocked ? rule : null);
+        log.warn("[CS-SECURITY] sessionId={} userId={} rule={} blocked={} detail={}",
+                sessionId, userId, rule, blocked, detail);
+    }
+
     public synchronized List<AuditEntry> recent(int limit) {
         return entries.stream().limit(Math.max(1, limit)).map(e -> e).toList();
     }

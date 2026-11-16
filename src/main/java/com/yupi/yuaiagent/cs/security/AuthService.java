@@ -30,19 +30,38 @@ public class AuthService {
             "admin", Set.of());
 
     /**
+     * 会话级身份缓存：同一 token 有效期内只做内存比对，避免重复构造与鉴权开销。
+     */
+    private final Map<String, CachedIdentity> identityCache = new java.util.concurrent.ConcurrentHashMap<>();
+
+    private static final long IDENTITY_CACHE_TTL_MILLIS = 10 * 60 * 1000L;
+
+    /**
      * 校验 token，支持 demo-token-{userId} 形式；空 token 返回匿名身份
      */
     public UserIdentity verify(String token) {
         if (token == null || token.isBlank()) {
             return UserIdentity.anonymous();
         }
-        String userId = token.startsWith("demo-token-") ? token.substring("demo-token-".length()) : token;
-        if (!USER_ROLES.containsKey(userId)) {
-            return UserIdentity.anonymous();
+        CachedIdentity cached = identityCache.get(token);
+        if (cached != null && System.currentTimeMillis() < cached.expireAt()) {
+            return cached.identity();
         }
-        return new UserIdentity(userId,
-                new HashSet<>(USER_ROLES.get(userId)),
-                new HashSet<>(USER_ORDERS.getOrDefault(userId, Set.of())));
+
+        String userId = token.startsWith("demo-token-") ? token.substring("demo-token-".length()) : token;
+        UserIdentity identity;
+        if (!USER_ROLES.containsKey(userId)) {
+            identity = UserIdentity.anonymous();
+        } else {
+            identity = new UserIdentity(userId,
+                    new HashSet<>(USER_ROLES.get(userId)),
+                    new HashSet<>(USER_ORDERS.getOrDefault(userId, Set.of())));
+        }
+        identityCache.put(token, new CachedIdentity(identity, System.currentTimeMillis() + IDENTITY_CACHE_TTL_MILLIS));
+        return identity;
+    }
+
+    private record CachedIdentity(UserIdentity identity, long expireAt) {
     }
 
     public Optional<String> resolveUserId(String token) {

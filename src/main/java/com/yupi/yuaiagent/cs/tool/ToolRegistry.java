@@ -31,6 +31,9 @@ public class ToolRegistry {
     /** toolName → 来源 local/mcp */
     private final Map<String, String> toolSources = new ConcurrentHashMap<>();
 
+    /** MCP 服务整体可用性，由健康巡检维护 */
+    private volatile boolean mcpAvailable = true;
+
     public ToolRegistry(CsBusinessTools csBusinessTools, ObjectProvider<ToolCallbackProvider> mcpToolProvider) {
         this.csBusinessTools = csBusinessTools;
         this.mcpToolProvider = mcpToolProvider;
@@ -62,6 +65,10 @@ public class ToolRegistry {
             }
             return false;
         });
+        if (!mcpAvailable) {
+            log.info("[CS] MCP 服务不可用，暂不注册 MCP 工具");
+            return;
+        }
         ToolCallbackProvider provider = mcpToolProvider.getIfAvailable();
         if (provider == null) {
             log.info("[CS] 未发现 MCP 工具提供者");
@@ -108,5 +115,17 @@ public class ToolRegistry {
 
     public String sourceOf(String toolName) {
         return toolSources.getOrDefault(toolName, "unknown");
+    }
+
+    public boolean isMcpAvailable() {
+        return mcpAvailable;
+    }
+
+    public void setMcpAvailable(boolean available) {
+        this.mcpAvailable = available;
+    }
+
+    public int mcpToolCount() {
+        return (int) toolSources.values().stream().filter("mcp"::equals).count();
     }
 }
