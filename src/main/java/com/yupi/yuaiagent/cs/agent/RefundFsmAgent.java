@@ -197,11 +197,15 @@ public class RefundFsmAgent implements AgentSkill {
                             .append("「您是否确认退款？回复『确认退款』即可办理」，不要重复调用 escalate_to_human。\n");
                     continue;
                 }
+                // 重复调用不直接转人工：停止执行并询问用户是否需要人工，避免误判
                 if (loopDetector.record(toolName, arguments)) {
-                    observation.append("检测到重复调用 ").append(toolName).append("，已终止执行\n");
                     persistState(session, state, orderId);
-                    return AgentRunResult.needHuman("检测到任务重复执行，为避免误操作已转人工处理。",
-                            state, traces, "LOOP_DETECTED");
+                    session.setPendingHumanOffer(true);
+                    traces.add("重复工具调用，询问用户是否转人工");
+                    return new AgentRunResult(
+                            "我刚刚尝试了相同的操作，这个问题可能无法自动完成。需要为您转接人工客服吗？"
+                                    + "回复「转人工」即可；如果希望我继续处理，请补充更多信息。",
+                            state, traces, false, null);
                 }
                 if (orderId != null && !arguments.containsKey("orderId")) {
                     arguments.put("orderId", orderId);

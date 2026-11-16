@@ -61,5 +61,7 @@ public class CsProperties {
         /** 模拟坐席数量 */
         private int agentCount = 3;
         private int queueLimit = 100;
+        /** 同一问题重复多少次后，主动询问是否需要转人工 */
+        private int repeatQuestionStrikes = 3;
     }
 }

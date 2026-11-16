@@ -41,6 +41,8 @@ public class CsRagService {
             1. 只使用参考资料中的信息，不要编造政策、时效或金额。
             2. 若参考资料不足以回答，直接回答「这个问题我需要为您转接人工客服进一步核实」。
             3. 回答简洁分点，不超过 200 字，语气礼貌。
+            4. 结合「对话上下文」理解用户的指代和省略（如「它」「这个」「那运费呢」），
+               但事实依据仍只能来自参考资料；上下文与资料冲突时以资料为准。
             """;
 
     private final VectorStore csVectorStore;
@@ -99,7 +101,8 @@ public class CsRagService {
         try {
             String answer = chatClient.prompt()
                     .system(ANSWER_PROMPT)
-                    .user(u -> u.text("参考资料：\n{context}\n\n用户问题：{question}")
+                    .user(u -> u.text("对话上下文：\n{history}\n\n参考资料：\n{context}\n\n用户问题：{question}")
+                            .param("history", historySummary.isBlank() ? "无" : historySummary)
                             .param("context", context)
                             .param("question", question))
                     .call()

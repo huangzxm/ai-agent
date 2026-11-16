@@ -81,3 +81,4 @@ cs:
   human:
     agent-count: 3             # 模拟坐席数量
     queue-limit: 100
+    repeat-question-strikes: 3 # 同一问题重复次数达到后询问是否转人工

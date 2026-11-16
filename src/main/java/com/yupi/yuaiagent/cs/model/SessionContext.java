@@ -43,6 +43,15 @@ public class SessionContext {
     /** AI 主动申请转人工次数，需多次申请才真正生效 */
     private int escalateCount;
 
+    /** 上一轮用户问题的归一化指纹，用于识别重复提问 */
+    private String lastQuestionKey;
+
+    /** 同一问题重复次数 */
+    private int repeatQuestionCount;
+
+    /** 已向用户询问是否需要转人工，等待用户回答 */
+    private boolean pendingHumanOffer;
+
     public int incrementAnger() {
         return ++angerCount;
     }

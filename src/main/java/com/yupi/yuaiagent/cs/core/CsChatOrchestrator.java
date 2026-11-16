@@ -1,5 +1,6 @@
 package com.yupi.yuaiagent.cs.core;
 
+import com.yupi.yuaiagent.cs.CsProperties;
 import com.yupi.yuaiagent.cs.agent.AgentRunResult;
 import com.yupi.yuaiagent.cs.agent.AgentSkill;
 import com.yupi.yuaiagent.cs.agent.SkillDispatcher;
@@ -43,11 +44,13 @@ public class CsChatOrchestrator {
     private final HumanTransferService humanTransferService;
     private final FallbackService fallbackService;
     private final MetricsCollector metricsCollector;
+    private final CsProperties properties;
 
     public CsChatOrchestrator(SessionManager sessionManager, ResponseCache responseCache,
                               IntentRouter intentRouter, CsRagService ragService,
                               SkillDispatcher skillDispatcher, HumanTransferService humanTransferService,
-                              FallbackService fallbackService, MetricsCollector metricsCollector) {
+                              FallbackService fallbackService, MetricsCollector metricsCollector,
+                              CsProperties properties) {
         this.sessionManager = sessionManager;
         this.responseCache = responseCache;
         this.intentRouter = intentRouter;
@@ -56,6 +59,7 @@ public class CsChatOrchestrator {
         this.humanTransferService = humanTransferService;
         this.fallbackService = fallbackService;
         this.metricsCollector = metricsCollector;
+        this.properties = properties;
     }
 
     public CsChatResponse chat(CsChatRequest request, CsEventListener listener) {
@@ -76,7 +80,8 @@ public class CsChatOrchestrator {
                     .costMillis(System.currentTimeMillis() - start).build();
         }
 
-        // 记录用户消息
+        // 先取「本轮之前」的历史快照，用于查询重写与上下文传递，再把当前消息写入会话
+        List<Message> historyBefore = sessionManager.loadTrimmedHistory(session.getSessionId());
         sessionManager.appendMessages(session.getSessionId(), List.of(new UserMessage(message)));
 
         try {
@@ -96,23 +101,31 @@ public class CsChatOrchestrator {
             }
             metricsCollector.increment("cache_miss");
 
-            // 2. 路由（有未完成的 Agent 任务时锁定 AGENT 路径，避免多轮确认被重新分流）
+            // 2. 重复提问检测：先询问是否需要转人工，而不是直接降级
+            CsChatResponse offer = humanOfferGate(message, session, listener, start);
+            if (offer != null) {
+                sessionManager.appendMessages(session.getSessionId(), List.of(new AssistantMessage(offer.getAnswer())));
+                listener.onDone(offer);
+                return offer;
+            }
+
+            // 3. 路由（有未完成的 Agent 任务时锁定 AGENT 路径，避免多轮确认被重新分流）
             listener.onStage("正在理解您的问题…");
             RouteDecision decision;
             if (session.getAgentState() != null && !session.getAgentState().isBlank()) {
                 decision = RouteDecision.of(RouteType.AGENT, 0.95, "继续未完成的售后任务");
                 decision.setCategory("refund");
             } else {
-                decision = intentRouter.route(message, session);
+                decision = intentRouter.route(message, session, historyBefore);
                 decision = applyModeOverride(decision, request.getMode());
             }
             metricsCollector.recordRoute(decision.getRoute().name());
             listener.onRoute(decision);
 
-            // 3. 分发执行
+            // 4. 分发执行
             CsChatResponse response = switch (decision.getRoute()) {
-                case CHAT -> handleChat(message, decision, session, listener, start);
-                case AGENT -> handleAgent(message, decision, session, listener, request.getToken(), start);
+                case CHAT -> handleChat(message, decision, session, historyBefore, listener, start);
+                case AGENT -> handleAgent(message, decision, session, historyBefore, listener, request.getToken(), start);
                 case HUMAN -> handleHuman(decision, session, listener, start);
             };
 
@@ -152,9 +165,8 @@ public class CsChatOrchestrator {
     }
 
     private CsChatResponse handleChat(String message, RouteDecision decision, SessionContext session,
-                                      CsEventListener listener, long start) {
+                                      List<Message> history, CsEventListener listener, long start) {
         listener.onStage("正在检索知识库…");
-        List<Message> history = sessionManager.loadTrimmedHistory(session.getSessionId());
         metricsCollector.recordTokens(sessionManager.estimateTokens(history));
         RagAnswer ragAnswer = ragService.answer(message, decision.getCategory(), history);
 
@@ -179,9 +191,8 @@ public class CsChatOrchestrator {
     }
 
     private CsChatResponse handleAgent(String message, RouteDecision decision, SessionContext session,
-                                       CsEventListener listener, String token, long start) {
+                                       List<Message> history, CsEventListener listener, String token, long start) {
         listener.onStage("正在执行任务…");
-        List<Message> history = sessionManager.loadTrimmedHistory(session.getSessionId());
         // 技能分发：按路由识别出的 skillId 找到具体 Agent 实现
         AgentSkill skill = skillDispatcher.dispatch(decision.getSkillId());
         AgentRunResult result = skill.run(message, session, decision.getCategory(), token, history);
@@ -222,6 +233,66 @@ public class CsChatOrchestrator {
                 .transferId(record.getTransferId()).transferAgent(record.getAssignedAgent())
                 .traces(new ArrayList<>(record.getContextSnapshot()))
                 .costMillis(System.currentTimeMillis() - start).build();
+    }
+
+    /**
+     * 重复提问检测：同一问题多次出现时，先询问是否需要转人工，而不是直接降级。
+     * 同时消费上一轮的转人工询问结果。
+     *
+     * @return 已经给出回复时返回响应，否则返回 null 继续正常流程
+     */
+    private CsChatResponse humanOfferGate(String message, SessionContext session,
+                                          CsEventListener listener, long start) {
+        // 用户对上一轮「是否需要转人工」的回应
+        if (session.isPendingHumanOffer()) {
+            session.setPendingHumanOffer(false);
+            if (isAffirmative(message)) {
+                RouteDecision decision = RouteDecision.of(RouteType.HUMAN, 1.0, "用户确认转人工");
+                return handleHuman(decision, session, listener, start);
+            }
+        }
+
+        String key = responseCache.normalize(message);
+        if (key.length() < 2) {
+            return null;
+        }
+        if (key.equals(session.getLastQuestionKey())) {
+            int count = session.getRepeatQuestionCount() + 1;
+            session.setRepeatQuestionCount(count);
+            int required = properties.getHuman().getRepeatQuestionStrikes();
+            if (count >= required) {
+                session.setPendingHumanOffer(true);
+                session.setRepeatQuestionCount(0);
+                metricsCollector.increment("human_offer");
+                String answer = "您已经连续 " + required + " 次询问同一个问题，可能是我之前的回答没有解决您的问题。"
+                        + "需要为您转接人工客服吗？回复「转人工」即可；如果希望我继续处理，请补充更多细节。";
+                listener.onMessage(answer);
+                return CsChatResponse.builder()
+                        .chatId(session.getSessionId()).route(RouteType.CHAT).answer(answer)
+                        .confidence(1.0)
+                        .traces(new ArrayList<>(List.of("重复问题，询问是否转人工")))
+                        .costMillis(System.currentTimeMillis() - start).build();
+            }
+        } else {
+            session.setLastQuestionKey(key);
+            session.setRepeatQuestionCount(1);
+        }
+        return null;
+    }
+
+    private boolean isAffirmative(String message) {
+        if (message == null) {
+            return false;
+        }
+        String text = message.trim();
+        if (text.contains("不用") || text.contains("不需要") || text.contains("算了") || text.contains("不了")) {
+            return false;
+        }
+        if (text.contains("转人工") || text.contains("人工")) {
+            return true;
+        }
+        return text.equals("是") || text.equals("好") || text.equals("好的") || text.equals("行")
+                || text.contains("需要") || text.contains("可以") || text.contains("麻烦");
     }
 
     /**

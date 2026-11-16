@@ -33,12 +33,12 @@ public class IntentRouter {
         this.properties = properties;
     }
 
-    public RouteDecision route(String message, SessionContext session) {
+    public RouteDecision route(String message, SessionContext session, List<Message> historyBefore) {
         // 1. 规则层
         Optional<RouteDecision> ruleHit = ruleClassifier.classify(message);
         RouteDecision decision = ruleHit.orElseGet(() -> {
-            // 2. LLM 语义层（带最近历史摘要）
-            List<Message> history = sessionManager.loadTrimmedHistory(session.getSessionId());
+            // 2. LLM 语义层（使用本轮之前的历史做上下文判断）
+            List<Message> history = historyBefore == null ? List.of() : historyBefore;
             String summary = history.stream()
                     .map(m -> m.getMessageType().name() + ":" + m.getText())
                     .limit(4)
